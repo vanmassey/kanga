@@ -10,6 +10,7 @@ use limine::BaseRevision;
 static REQUESTS_START_MARKER: RequestsStartMarker = RequestsStartMarker::new();
 
 #[used]
+#[link_section = ".limine_requests"]
 static BASE_REVISION: BaseRevision = BaseRevision::new();
 
 #[used]
