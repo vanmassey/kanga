@@ -42,3 +42,18 @@ The QEMU smoke test checks for the successful frame-allocation, HHDM-address and
 - a page-table abstraction and controlled mapping changes;
 - a kernel heap backed by allocated frames; and
 - tests for fragmented memory maps and allocation exhaustion.
+
+
+## Framebuffer and graphical boot screen
+
+Kanga requests a framebuffer from Limine and uses the first supplied display. The
+initial renderer accepts 32-bit RGB framebuffers, validates the dimensions and
+pitch, and draws a simple status screen directly into the mapped framebuffer.
+A compact built-in 5-by-7 bitmap font renders the boot labels without a heap or
+external font dependency.
+
+The renderer is deliberately small. It does not yet provide a terminal, scrolling,
+keyboard input, graphics acceleration, multiple-display support or mode setting.
+The serial console remains the authoritative diagnostic output. Unsupported
+framebuffer formats are reported over serial and do not prevent the kernel from
+continuing to its idle loop.
