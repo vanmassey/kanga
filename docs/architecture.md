@@ -23,19 +23,12 @@ The current boot path is a single x86-64 kernel entry point. Limine supplies the
 
 ## Development sequence
 
-1. Establish a repeatable freestanding build and boot pipeline.
-2. Capture and validate the bootloader memory map.
-3. Implement physical frame allocation and page-table management.
-4. Add a general IRQ dispatcher, APIC support and a hardware timer.
-5. Introduce kernel allocation, device discovery and storage.
-6. Add scheduling, user mode and system calls.
-7. Build filesystem and networking interfaces.
-8. Add a general IRQ dispatcher, spurious IRQ handling, APIC/IOAPIC support and a hardware timer.
-9. Complete virtual memory and kernel heap allocation, including frame reclamation.
-10. Add PCI enumeration and reliable storage/device drivers.
-11. Build a block-device layer, partition discovery, VFS and an initial filesystem.
-12. Add kernel threads, scheduling, user mode, system calls and an ELF loader.
-13. Add networking, beginning with Ethernet, ARP, IPv4 and ICMP, then UDP and TCP.
-14. Build userland utilities and a more capable shell; consider a graphical environment later.
-
+1. Harden CPU and boot setup, including descriptor tables and exception diagnostics.
+2. Build a general IRQ dispatcher with spurious IRQ handling; add APIC/IOAPIC support and a hardware timer.
+3. Complete physical and virtual memory management, including page-table control, frame reclamation and a kernel heap.
+4. Add PCI enumeration and reliable device drivers, starting with storage and virtualised QEMU devices.
+5. Build a block-device layer, partition discovery, VFS and an initial filesystem.
+6. Add kernel threads and scheduling, then user mode, system calls and an ELF loader.
+7. Add networking in layers: Ethernet, ARP, IPv4, ICMP, UDP and TCP.
+8. Build userland utilities and a more capable shell; consider a graphical environment only after the underlying systems are stable.
 These are design plans, not claims that the components already exist.
