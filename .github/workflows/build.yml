@@ -42,6 +42,10 @@ jobs:
           grep -F "Allocated frame virtual address:" build/serial.log
           grep -F "Frame memory test: passed" build/serial.log
           grep -F "Display: Kanga graphical boot screen ready" build/serial.log
+          grep -F "Display: framebuffer text console ready" build/serial.log
+          grep -F "Kanga interactive shell" build/serial.log
+          grep -F "Type 'help' for available commands." build/serial.log
+          grep -F "kanga> " build/serial.log
       - name: Upload bootable ISO and serial log
         uses: actions/upload-artifact@v4
         with:
