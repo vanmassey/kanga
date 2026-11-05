@@ -95,7 +95,10 @@ fn execute(command_line: &[u8], console: Option<&mut Console>, filesystem: &mut 
     if command.eq_ignore_ascii_case(b"help") || command == b"/?" {
         let _ = writeln!(output, "Kanga DOS-style command shell");
         let _ = writeln!(output, "DIR       list files in KangaFS");
-        let _ = writeln!(output, "WRITE     create or replace a file: WRITE name.txt text");
+        let _ = writeln!(
+            output,
+            "WRITE     create or replace a file: WRITE name.txt text"
+        );
         let _ = writeln!(output, "TYPE      display a file: TYPE name.txt");
         let _ = writeln!(output, "DEL       delete a file: DEL name.txt");
         let _ = writeln!(output, "FSINFO    show KangaFS capacity and status");
@@ -215,8 +218,17 @@ fn execute(command_line: &[u8], console: Option<&mut Console>, filesystem: &mut 
     } else if command.eq_ignore_ascii_case(b"fsinfo") {
         let _ = writeln!(output, "Filesystem: KangaFS");
         let _ = writeln!(output, "Storage: volatile kernel RAM");
-        let _ = writeln!(output, "Files: {}/{}", filesystem.used(), filesystem.capacity());
-        let _ = writeln!(output, "Maximum file size: {} bytes", filesystem.file_capacity());
+        let _ = writeln!(
+            output,
+            "Files: {}/{}",
+            filesystem.used(),
+            filesystem.capacity()
+        );
+        let _ = writeln!(
+            output,
+            "Maximum file size: {} bytes",
+            filesystem.file_capacity()
+        );
         let _ = writeln!(output, "Data is cleared when the system reboots.");
     } else if command.eq_ignore_ascii_case(b"about") {
         let _ = writeln!(output, "Kanga is an independent x86-64 operating system.");
@@ -245,7 +257,9 @@ fn execute(command_line: &[u8], console: Option<&mut Console>, filesystem: &mut 
 
 fn report_fs_error(output: &mut Output<'_>, error: filesystem::Error) {
     let message = match error {
-        filesystem::Error::InvalidName => "Invalid filename. Use letters, numbers, dot, dash or underscore.",
+        filesystem::Error::InvalidName => {
+            "Invalid filename. Use letters, numbers, dot, dash or underscore."
+        }
         filesystem::Error::NameTooLong => "Filename is too long (24 characters maximum).",
         filesystem::Error::FileTooLarge => "File is too large (256 bytes maximum).",
         filesystem::Error::DirectoryFull => "KangaFS directory is full (16 files maximum).",
