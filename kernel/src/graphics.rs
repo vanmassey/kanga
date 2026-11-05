@@ -216,7 +216,6 @@ fn glyph(character: char) -> [u8; 7] {
     }
 }
 
-
 const CONSOLE_SCALE: usize = 2;
 const CELL_WIDTH: usize = 12;
 const CELL_HEIGHT: usize = 18;
@@ -243,8 +242,11 @@ impl Console {
         let pitch = usize::try_from(framebuffer.pitch()).ok()?;
         let minimum_pitch = width.checked_mul(4)?;
         let total_bytes = pitch.checked_mul(height)?;
-        if width < CELL_WIDTH || height < CELL_HEIGHT || pitch < minimum_pitch
-            || total_bytes == 0 || framebuffer.addr().is_null()
+        if width < CELL_WIDTH
+            || height < CELL_HEIGHT
+            || pitch < minimum_pitch
+            || total_bytes == 0
+            || framebuffer.addr().is_null()
         {
             return None;
         }
@@ -305,13 +307,8 @@ impl Console {
         // SAFETY: The cell is within the computed grid. Glyph drawing clips.
         unsafe {
             self.surface.rect(x, y, CELL_WIDTH, CELL_HEIGHT, BACKGROUND);
-            self.surface.text(
-                x + 1,
-                y + 1,
-                glyph_text,
-                CONSOLE_SCALE,
-                WHITE,
-            );
+            self.surface
+                .text(x + 1, y + 1, glyph_text, CONSOLE_SCALE, WHITE);
         }
         self.column += 1;
         self.draw_prompt_cursor();
@@ -347,7 +344,11 @@ impl Console {
             // framebuffer. Forward copying is safe because destination is
             // below source and therefore cannot overwrite a later source byte.
             unsafe {
-                let value = self.surface.address.add(offset + scroll_bytes).read_volatile();
+                let value = self
+                    .surface
+                    .address
+                    .add(offset + scroll_bytes)
+                    .read_volatile();
                 self.surface.address.add(offset).write_volatile(value);
             }
         }
