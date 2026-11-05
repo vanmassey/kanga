@@ -207,3 +207,158 @@ fn glyph(character: char) -> [u8; 7] {
         _ => [31, 17, 1, 2, 4, 0, 4],
     }
 }
+
+
+const CONSOLE_SCALE: usize = 2;
+const CELL_WIDTH: usize = 12;
+const CELL_HEIGHT: usize = 18;
+
+/// A small framebuffer text console. The framebuffer mapping must remain valid
+/// and exclusively writable for the lifetime of this value.
+pub struct Console {
+    surface: Surface,
+    columns: usize,
+    rows: usize,
+    column: usize,
+    row: usize,
+}
+
+impl Console {
+    /// # Safety
+    /// The supplied Limine framebuffer must remain mapped and writable.
+    pub unsafe fn new(framebuffer: &Framebuffer<'_>) -> Option<Self> {
+        if framebuffer.memory_model() != MemoryModel::RGB || framebuffer.bpp() != 32 {
+            return None;
+        }
+        let width = usize::try_from(framebuffer.width()).ok()?;
+        let height = usize::try_from(framebuffer.height()).ok()?;
+        let pitch = usize::try_from(framebuffer.pitch()).ok()?;
+        let minimum_pitch = width.checked_mul(4)?;
+        let total_bytes = pitch.checked_mul(height)?;
+        if width < CELL_WIDTH || height < CELL_HEIGHT || pitch < minimum_pitch
+            || total_bytes == 0 || framebuffer.addr().is_null()
+        {
+            return None;
+        }
+        let surface = Surface {
+            address: framebuffer.addr(),
+            width,
+            height,
+            pitch,
+            red_size: framebuffer.red_mask_size(),
+            red_shift: framebuffer.red_mask_shift(),
+            green_size: framebuffer.green_mask_size(),
+            green_shift: framebuffer.green_mask_shift(),
+            blue_size: framebuffer.blue_mask_size(),
+            blue_shift: framebuffer.blue_mask_shift(),
+        };
+        let mut console = Self {
+            surface,
+            columns: width / CELL_WIDTH,
+            rows: height / CELL_HEIGHT,
+            column: 0,
+            row: 0,
+        };
+        console.clear();
+        Some(console)
+    }
+
+    pub fn clear(&mut self) {
+        // SAFETY: Console owns the validated live framebuffer mapping.
+        unsafe { self.surface.fill(BACKGROUND) };
+        self.column = 0;
+        self.row = 0;
+        self.draw_prompt_cursor();
+    }
+
+    pub fn write_text(&mut self, text: &str) {
+        for byte in text.bytes() {
+            match byte {
+                b'\n' => self.newline(),
+                b'\r' => self.column = 0,
+                b'\x08' => self.backspace(),
+                0x20..=0x7e => self.put_character(byte as char),
+                _ => self.put_character('?'),
+            }
+        }
+    }
+
+    fn put_character(&mut self, character: char) {
+        if self.column >= self.columns {
+            self.newline();
+        }
+        let x = self.column * CELL_WIDTH;
+        let y = self.row * CELL_HEIGHT;
+        // SAFETY: The cell is within the computed grid. Glyph drawing clips.
+        unsafe {
+            self.surface.rect(x, y, CELL_WIDTH, CELL_HEIGHT, BACKGROUND);
+            self.surface.text(
+                x + 1,
+                y + 1,
+                &character.to_ascii_uppercase().to_string(),
+                CONSOLE_SCALE,
+                WHITE,
+            );
+        }
+        self.column += 1;
+    }
+
+    fn newline(&mut self) {
+        self.column = 0;
+        self.row += 1;
+        if self.row >= self.rows {
+            self.scroll();
+            self.row = self.rows - 1;
+        }
+    }
+
+    fn backspace(&mut self) {
+        if self.column == 0 {
+            return;
+        }
+        self.column -= 1;
+        let x = self.column * CELL_WIDTH;
+        let y = self.row * CELL_HEIGHT;
+        // SAFETY: The cursor remains within the console grid.
+        unsafe { self.surface.rect(x, y, CELL_WIDTH, CELL_HEIGHT, BACKGROUND) };
+    }
+
+    fn scroll(&mut self) {
+        let scroll_bytes = CELL_HEIGHT * self.surface.pitch;
+        let remaining = self.surface.height.saturating_sub(CELL_HEIGHT);
+        for offset in 0..remaining * self.surface.pitch {
+            // SAFETY: Source and destination lie within the validated mapped
+            // framebuffer. Forward copying is safe because destination is
+            // below source and therefore cannot overwrite a later source byte.
+            unsafe {
+                let value = self.surface.address.add(offset + scroll_bytes).read_volatile();
+                self.surface.address.add(offset).write_volatile(value);
+            }
+        }
+        // Clear the newly exposed bottom rows.
+        // SAFETY: The rectangle is clipped to the framebuffer bounds.
+        unsafe {
+            self.surface.rect(
+                0,
+                self.surface.height.saturating_sub(CELL_HEIGHT),
+                self.surface.width,
+                CELL_HEIGHT,
+                BACKGROUND,
+            );
+        }
+    }
+
+    fn draw_prompt_cursor(&mut self) {
+        let x = self.column * CELL_WIDTH;
+        let y = self.row * CELL_HEIGHT + CELL_HEIGHT - 2;
+        // SAFETY: Cursor coordinates are within the console cell.
+        unsafe { self.surface.rect(x, y, 8, 2, ACCENT) };
+    }
+}
+
+impl core::fmt::Write for Console {
+    fn write_str(&mut self, text: &str) -> core::fmt::Result {
+        self.write_text(text);
+        Ok(())
+    }
+}
