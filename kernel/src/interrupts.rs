@@ -96,9 +96,14 @@ pub fn initialise() {
         "Interrupts: CPU exception gates 0-31 configured"
     );
     crate::pic::initialise();
-    let _ = writeln!(crate::serial::Writer, "Interrupts: PIC remapped; keyboard IRQ1 unmasked");
+    let _ = writeln!(
+        crate::serial::Writer,
+        "Interrupts: PIC remapped; keyboard IRQ1 unmasked"
+    );
     // SAFETY: The IDT and PIC are ready, and IRQ1 has a valid handler.
-    unsafe { asm!("sti", options(nomem, nostack)); }
+    unsafe {
+        asm!("sti", options(nomem, nostack));
+    }
     let _ = writeln!(crate::serial::Writer, "Interrupts: keyboard IRQ1 enabled");
 }
 
