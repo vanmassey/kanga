@@ -54,9 +54,9 @@ cp "$UEFI_APP" "$ISO_ROOT/EFI/BOOT/BOOTX64.EFI"
 
 xorriso -as mkisofs -R -r -J \
     -b boot/limine/limine-bios-cd.bin \
-    -no-emul-boot -boot-load-size 4 -boot-info-table -hfsplus \
-    -apm-block-size 2048 --efi-boot boot/limine/limine-uefi-cd.bin \
-    -efi-boot-part -efi-boot-image --protective-msdos-label \
+    -no-emul-boot -boot-load-size 4 -boot-info-table \
+    --efi-boot boot/limine/limine-uefi-cd.bin \
+    --protective-msdos-label \
     "$ISO_ROOT" -o build/kanga.iso
 
 "$LIMINE_TOOL" bios-install build/kanga.iso
