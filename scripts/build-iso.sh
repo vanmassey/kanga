@@ -26,9 +26,16 @@ BIOS_SYS=$(find_file limine-bios.sys)
 BIOS_CD=$(find_file limine-bios-cd.bin)
 UEFI_CD=$(find_file limine-uefi-cd.bin)
 UEFI_APP=$(find_file BOOTX64.EFI)
-LIMINE_TOOL=$(find build/limine -type f -name limine -perm /111 -print -quit)
 
-for file in "$BIOS_SYS" "$BIOS_CD" "$UEFI_CD" "$UEFI_APP" "$LIMINE_TOOL"; do
+if [ -z "$BIOS_SYS" ]; then
+    echo "Limine BIOS system file is missing" >&2
+    exit 1
+fi
+LIMINE_DIR=$(dirname "$BIOS_SYS")
+make -C "$LIMINE_DIR"
+LIMINE_TOOL="$LIMINE_DIR/limine"
+
+for file in "$BIOS_CD" "$UEFI_CD" "$UEFI_APP" "$LIMINE_TOOL"; do
     if [ -z "$file" ] || [ ! -f "$file" ]; then
         echo "Required Limine binary missing: $file" >&2
         exit 1
@@ -47,8 +54,8 @@ cp "$UEFI_APP" "$ISO_ROOT/EFI/BOOT/BOOTX64.EFI"
 
 xorriso -as mkisofs -R -r -J \
     -b boot/limine/limine-bios-cd.bin \
-    -no-emul-boot -boot-load-size 4 -boot-info-table \
-    --efi-boot boot/limine/limine-uefi-cd.bin \
+    -no-emul-boot -boot-load-size 4 -boot-info-table -hfsplus \
+    -apm-block-size 2048 --efi-boot boot/limine/limine-uefi-cd.bin \
     -efi-boot-part -efi-boot-image --protective-msdos-label \
     "$ISO_ROOT" -o build/kanga.iso
 
