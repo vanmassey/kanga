@@ -50,11 +50,18 @@ jobs:
           done
           grep -F "Kanga> " build/serial.log
 
-          for key in d i r ret v e r ret e c h o spc h e l l o spc k a n g a ret c l s ret; do
+          for key in d i r ret v e r ret e c h o spc h e l l o spc k a n g a ret; do
             printf 'sendkey %s 80\n' "$key" | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
             sleep 0.15
           done
           sleep 0.5
+          printf 'screendump build/kanga-screen.ppm\\n' | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
+          sleep 0.2
+          for key in c l s ret; do
+            printf 'sendkey %s 80\\n' \"$key\" | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
+            sleep 0.15
+          done
+          sleep 0.2
           cleanup
           trap - EXIT
           cat build/serial.log
@@ -75,6 +82,8 @@ jobs:
           grep -F "Kanga OS [Version 0.1.0]" build/serial.log
           grep -F "No filesystem is mounted." build/serial.log
           grep -F "Hello Kanga" build/serial.log
+          test -s build/kanga-screen.ppm
+          python3 scripts/check-framebuffer.py build/kanga-screen.ppm
       - name: Upload bootable ISO and serial log
         uses: actions/upload-artifact@v4
         with:
@@ -82,5 +91,6 @@ jobs:
           path: |
             build/kanga.iso
             build/serial.log
+            build/kanga-screen.ppm
           if-no-files-found: error
           retention-days: 7
