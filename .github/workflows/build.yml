@@ -37,3 +37,4 @@ jobs:
           grep -F "Kanga kernel entry reached" build/serial.log
           grep -F "Memory map entries:" build/serial.log
           grep -F "Physical frame allocator: allocated frame at" build/serial.log
+          grep -F "Allocated frame virtual address:" build/serial.log
