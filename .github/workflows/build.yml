@@ -26,10 +26,10 @@ jobs:
         run: |
           set -eu
           rm -f build/serial.log build/qemu-monitor.sock
-          qemu-system-x86_64 \\
-            -machine q35 -m 256M -boot d -cdrom build/kanga.iso \\
-            -serial file:build/serial.log \\
-            -monitor unix:build/qemu-monitor.sock,server,nowait \\
+          qemu-system-x86_64 \
+            -machine q35 -m 256M -boot d -cdrom build/kanga.iso \
+            -serial file:build/serial.log \
+            -monitor unix:build/qemu-monitor.sock,server,nowait \
             -display none -no-reboot -no-shutdown &
           qemu_pid=$!
           cleanup() {
@@ -51,7 +51,7 @@ jobs:
           grep -F "kanga> " build/serial.log
 
           for key in v e r s i o n ret; do
-            printf 'sendkey %s 80\\n' "$key" | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
+            printf 'sendkey %s 80\n' "$key" | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
             sleep 0.15
           done
           sleep 0.5
