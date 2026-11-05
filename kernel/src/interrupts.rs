@@ -81,6 +81,7 @@ pub fn initialise() {
         IDT[21] = IdtEntry::new(exception_with_error as usize, selector);
         IDT[29] = IdtEntry::new(exception_with_error as usize, selector);
         IDT[30] = IdtEntry::new(exception_with_error as usize, selector);
+        IDT[0x20] = IdtEntry::new(timer_irq as usize, selector);
         IDT[0x21] = IdtEntry::new(keyboard_irq as usize, selector);
 
         let pointer = IdtPointer {
@@ -98,18 +99,25 @@ pub fn initialise() {
     crate::pic::initialise();
     let _ = writeln!(
         crate::serial::Writer,
-        "Interrupts: PIC remapped; keyboard IRQ1 unmasked"
+        "Interrupts: PIC remapped; timer IRQ0 and keyboard IRQ1 unmasked"
     );
-    // SAFETY: The IDT and PIC are ready, and IRQ1 has a valid handler.
+    crate::pit::initialise();
+    let _ = writeln!(crate::serial::Writer, "Timer: PIT configured at 100 Hz");
+    // SAFETY: The IDT, PIC and PIT are ready, and IRQ0/IRQ1 have valid handlers.
     unsafe {
         asm!("sti", options(nomem, nostack));
     }
     let _ = writeln!(crate::serial::Writer, "Interrupts: keyboard IRQ1 enabled");
 }
 
+extern "x86-interrupt" fn timer_irq(_frame: InterruptStackFrame) {
+    crate::pit::handle_interrupt();
+    crate::pic::acknowledge_master_irq();
+}
+
 extern "x86-interrupt" fn keyboard_irq(_frame: InterruptStackFrame) {
     crate::keyboard::handle_interrupt();
-    crate::pic::acknowledge_keyboard();
+    crate::pic::acknowledge_master_irq();
 }
 
 extern "x86-interrupt" fn exception_without_error(_frame: InterruptStackFrame) {
