@@ -91,7 +91,10 @@ fn execute(command_line: &[u8], console: Option<&mut Console>) {
 
     if command.eq_ignore_ascii_case(b"help") || command == b"/?" {
         let _ = writeln!(output, "Kanga DOS-style command shell");
-        let _ = writeln!(output, "DIR       list files (requires a mounted filesystem)");
+        let _ = writeln!(
+            output,
+            "DIR       list files (requires a mounted filesystem)"
+        );
         let _ = writeln!(output, "CLS       clear the screen");
         let _ = writeln!(output, "VER       display the Kanga version");
         let _ = writeln!(output, "ECHO      display a message");
@@ -103,7 +106,10 @@ fn execute(command_line: &[u8], console: Option<&mut Console>) {
         let _ = writeln!(output, " Directory of KANGA:\\");
         let _ = writeln!(output);
         let _ = writeln!(output, "No filesystem is mounted.");
-        let _ = writeln!(output, "Disk and directory support are not implemented yet.");
+        let _ = writeln!(
+            output,
+            "Disk and directory support are not implemented yet."
+        );
     } else if command.eq_ignore_ascii_case(b"cls") || command.eq_ignore_ascii_case(b"clear") {
         if let Some(console) = output.0.as_deref_mut() {
             console.clear();
@@ -125,7 +131,10 @@ fn execute(command_line: &[u8], console: Option<&mut Console>) {
         let _ = writeln!(output, "Display: monochrome framebuffer text console");
     } else if command.eq_ignore_ascii_case(b"mem") {
         let _ = writeln!(output, "Physical frame allocation: initial 4 KiB allocator");
-        let _ = writeln!(output, "Frame reclamation, virtual memory and heap: not implemented");
+        let _ = writeln!(
+            output,
+            "Frame reclamation, virtual memory and heap: not implemented"
+        );
     } else if command.eq_ignore_ascii_case(b"halt") {
         let _ = writeln!(output, "Halting Kanga.");
         loop {
