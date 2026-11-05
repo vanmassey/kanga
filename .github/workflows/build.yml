@@ -15,27 +15,49 @@ jobs:
       - name: Install image and emulator tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential xorriso qemu-system-x86
+          sudo apt-get install -y build-essential xorriso qemu-system-x86 socat
       - name: Check shell scripts
         run: sh -n scripts/build-iso.sh scripts/check.sh scripts/run-qemu.sh
       - name: Check formatting
         run: cargo fmt --all -- --check
       - name: Build bootable image
         run: sh scripts/build-iso.sh
-      - name: Boot Kanga in QEMU
+      - name: Boot Kanga and test keyboard IRQ in QEMU
         run: |
-          set +e
-          timeout 15s qemu-system-x86_64 \
-            -machine q35 -m 256M -boot d -cdrom build/kanga.iso \
-            -serial file:build/serial.log -display none -no-reboot -no-shutdown
-          status=$?
-          set -e
-          if [ "$status" -ne 0 ] && [ "$status" -ne 124 ]; then
-            exit "$status"
-          fi
-          if [ -f build/serial.log ]; then
-            cat build/serial.log
-          fi
+          set -eu
+          rm -f build/serial.log build/qemu-monitor.sock
+          qemu-system-x86_64 \\
+            -machine q35 -m 256M -boot d -cdrom build/kanga.iso \\
+            -serial file:build/serial.log \\
+            -monitor unix:build/qemu-monitor.sock,server,nowait \\
+            -display none -no-reboot -no-shutdown &
+          qemu_pid=$!
+          cleanup() {
+            kill "$qemu_pid" 2>/dev/null || true
+            wait "$qemu_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          for attempt in $(seq 1 100); do
+            if grep -Fq "kanga> " build/serial.log 2>/dev/null; then
+              break
+            fi
+            if ! kill -0 "$qemu_pid" 2>/dev/null; then
+              cat build/serial.log || true
+              exit 1
+            fi
+            sleep 0.1
+          done
+          grep -F "kanga> " build/serial.log
+
+          for key in v e r s i o n ret; do
+            printf 'sendkey %s 80\\n' "$key" | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
+            sleep 0.15
+          done
+          sleep 0.5
+          cleanup
+          trap - EXIT
+          cat build/serial.log
           grep -F "Kanga kernel entry reached" build/serial.log
           grep -F "Interrupts: 256-entry IDT installed" build/serial.log
           grep -F "Interrupts: CPU exception gates 0-31 configured" build/serial.log
@@ -50,7 +72,7 @@ jobs:
           grep -F "Input: PS/2 keyboard (interrupt-driven IRQ1)" build/serial.log
           grep -F "Kanga interactive shell" build/serial.log
           grep -F "Type 'help' for available commands." build/serial.log
-          grep -F "kanga> " build/serial.log
+          grep -F "Kanga OS 0.1.0" build/serial.log
       - name: Upload bootable ISO and serial log
         uses: actions/upload-artifact@v4
         with:
