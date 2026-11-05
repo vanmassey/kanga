@@ -7,9 +7,9 @@ use crate::keyboard::{self, Key};
 const LINE_CAPACITY: usize = 80;
 
 pub fn run() -> ! {
-    let _ = writeln!(crate::serial::Writer, "\\nKanga interactive shell");
+    let _ = writeln!(crate::serial::Writer, "\nKanga interactive shell");
     let _ = writeln!(crate::serial::Writer, "Input: PS/2 keyboard (polling)");
-    let _ = writeln!(crate::serial::Writer, "Type 'help' for available commands.\\n");
+    let _ = writeln!(crate::serial::Writer, "Type 'help' for available commands.\n");
     prompt();
 
     let mut line = [0_u8; LINE_CAPACITY];
@@ -27,7 +27,7 @@ pub fn run() -> ! {
                 Key::Character(_) => {}
                 Key::Backspace if length > 0 => {
                     length -= 1;
-                    let _ = write!(crate::serial::Writer, "\\x08 \\x08");
+                    let _ = write!(crate::serial::Writer, "\x08 \x08");
                 }
                 Key::Backspace => {}
                 Key::Enter => {
@@ -62,7 +62,7 @@ fn execute(command: &[u8]) {
         b"clear" => {
             // ANSI clear-screen is useful in serial terminals; graphical
             // terminal rendering will replace this once a text console exists.
-            let _ = write!(crate::serial::Writer, "\\x1b[2J\\x1b[H");
+            let _ = write!(crate::serial::Writer, "\x1b[2J\x1b[H");
         }
         b"info" => {
             let _ = writeln!(crate::serial::Writer, "Kanga {} / x86_64", env!("CARGO_PKG_VERSION"));
