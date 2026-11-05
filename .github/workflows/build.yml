@@ -61,7 +61,7 @@ jobs:
           done
           grep -F "Kanga> " build/serial.log
 
-          for key in d i r ret v e r ret e c h o spc h e l l o spc k a n g a ret t i m e ret d a t e ret u p t i m e ret b e e p ret a b o u t ret; do
+          for key in d i r ret v e r ret e c h o spc h e l l o spc k a n g a ret t i m e ret d a t e ret u p t i m e ret b e e p ret a b o u t ret c a l ret; do
             printf 'sendkey %s 80\n' "$key" | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
             sleep 0.15
           done
@@ -98,6 +98,7 @@ jobs:
           grep -F "PC speaker: 880 Hz tone played." build/serial.log
           grep -F "Uptime:" build/serial.log
           grep -F "Kanga is an independent x86-64 operating system." build/serial.log
+          grep -F "Su Mo Tu We Th Fr Sa" build/serial.log
           test -s build/kanga-screen.ppm
           python3 scripts/check-framebuffer.py build/kanga-screen.ppm
       - name: Upload QEMU screenshot, bootable ISO and serial log
