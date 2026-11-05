@@ -2,10 +2,47 @@ use limine::memory_map::{Entry, EntryType};
 
 pub const PAGE_SIZE: u64 = 4096;
 const LOW_MEMORY_RESERVED_END: u64 = 0x10_0000;
+const FRAME_TEST_PATTERN: u64 = 0x4B41_4E47_4146_524D;
 
 /// Convert a physical address through Limine's higher-half direct map offset.
 pub fn physical_to_virtual(physical_address: u64, hhdm_offset: u64) -> Option<u64> {
     physical_address.checked_add(hhdm_offset)
+}
+
+/// Clear an allocated frame and verify that its direct-map address is writable.
+///
+/// # Safety
+///
+/// The virtual address must refer to a valid, exclusively owned 4 KiB frame
+/// mapped through the higher-half direct map.
+pub unsafe fn zero_and_verify_frame(virtual_address: u64) -> bool {
+    let Ok(address) = usize::try_from(virtual_address) else {
+        return false;
+    };
+
+    if address % PAGE_SIZE as usize != 0 {
+        return false;
+    }
+
+    let frame_ptr = address as *mut u8;
+    // SAFETY: The caller guarantees exclusive ownership of this mapped frame.
+    unsafe {
+        core::ptr::write_bytes(frame_ptr, 0, PAGE_SIZE as usize);
+    }
+
+    let test_ptr = frame_ptr.cast::<u64>();
+    // SAFETY: The frame is aligned, mapped and exclusively owned by the caller.
+    unsafe {
+        test_ptr.write_volatile(FRAME_TEST_PATTERN);
+    }
+    // SAFETY: The preceding write targets the same valid frame.
+    let observed = unsafe { test_ptr.read_volatile() };
+    // SAFETY: Restore the tested word to zero before handing the frame onward.
+    unsafe {
+        test_ptr.write_volatile(0);
+    }
+
+    observed == FRAME_TEST_PATTERN
 }
 
 /// A monotonic allocator for page-aligned frames in usable physical regions.
