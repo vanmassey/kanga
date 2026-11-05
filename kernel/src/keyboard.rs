@@ -84,7 +84,11 @@ fn letter_or_symbol(code: u8, shifted: bool, caps: bool, normal: &[u8], upper: &
         _ => 0x2C,
     };
     let index = (code - start) as usize;
-    if shifted ^ caps { upper[index] } else { normal[index] }
+    if shifted ^ caps {
+        upper[index]
+    } else {
+        normal[index]
+    }
 }
 
 unsafe fn inb(port: u16) -> u8 {
