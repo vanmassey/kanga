@@ -61,7 +61,7 @@ jobs:
           done
           grep -F "Kanga> " build/serial.log
 
-          for key in d i r ret v e r ret e c h o spc h e l l o spc k a n g a ret t i m e ret; do
+          for key in d i r ret v e r ret e c h o spc h e l l o spc k a n g a ret t i m e ret d a t e ret; do
             printf 'sendkey %s 80\n' "$key" | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
             sleep 0.15
           done
