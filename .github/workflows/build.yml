@@ -91,7 +91,7 @@ jobs:
           grep -F "Type HELP for a list of commands." build/serial.log
           grep -F "Kanga OS [Version 0.1.0]" build/serial.log
           grep -F "No filesystem is mounted." build/serial.log
-          grep -F "Hello Kanga" build/serial.log
+          grep -F "hello kanga" build/serial.log
           grep -F "System uptime:" build/serial.log
           grep -F "PIT timer ticks:" build/serial.log
           test -s build/kanga-screen.ppm
