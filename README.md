@@ -15,9 +15,10 @@ Kanga currently:
 - reads and summarises the Limine physical memory map;
 - allocates a page-aligned 4 KiB physical frame from usable memory;
 - requests the higher-half direct map and converts the frame address; and
-- clears the allocated frame and verifies memory access with a write/read test.
+- clears the allocated frame and verifies memory access with a write/read test; and
+- requests a Limine RGB framebuffer and draws an initial graphical boot screen.
 
-The physical frame allocator is an initial monotonic allocator. It reserves the first MiB of physical address space and does not yet support freeing or reclaiming frames. See docs/memory.md for the current design and limitations.
+The framebuffer renderer currently supports 32-bit RGB modes and uses a small built-in bitmap font. It is a boot splash, not yet an interactive terminal or desktop. The physical frame allocator is an initial monotonic allocator. It reserves the first MiB of physical address space and does not yet support freeing or reclaiming frames. See docs/memory.md for the current design and limitations.
 
 ## Build requirements
 
