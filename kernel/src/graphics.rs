@@ -25,8 +25,11 @@ pub unsafe fn draw_boot_screen(framebuffer: &Framebuffer<'_>) -> bool {
         Ok(value) if value > 0 => value,
         _ => return false,
     };
+    let Some(minimum_pitch) = width.checked_mul(4) else {
+        return false;
+    };
     let pitch = match usize::try_from(framebuffer.pitch()) {
-        Ok(value) if value >= width.saturating_mul(4) => value,
+        Ok(value) if value >= minimum_pitch => value,
         _ => return false,
     };
     let Some(total_bytes) = pitch.checked_mul(height) else {
@@ -178,16 +181,23 @@ fn glyph(character: char) -> [u8; 7] {
         'G' => [14, 17, 16, 23, 17, 17, 15],
         'H' => [17, 17, 17, 31, 17, 17, 17],
         'I' => [14, 4, 4, 4, 4, 4, 14],
+        'J' => [7, 2, 2, 2, 2, 18, 12],
         'K' => [17, 18, 20, 24, 20, 18, 17],
         'L' => [16, 16, 16, 16, 16, 16, 31],
         'M' => [17, 27, 21, 21, 17, 17, 17],
         'N' => [17, 25, 21, 19, 17, 17, 17],
         'O' => [14, 17, 17, 17, 17, 17, 14],
+        'P' => [30, 17, 17, 30, 16, 16, 16],
+        'Q' => [14, 17, 17, 17, 21, 18, 13],
         'R' => [30, 17, 17, 30, 20, 18, 17],
         'S' => [15, 16, 16, 14, 1, 1, 30],
         'T' => [31, 4, 4, 4, 4, 4, 4],
         'U' => [17, 17, 17, 17, 17, 17, 14],
         'V' => [17, 17, 17, 17, 17, 10, 4],
+        'W' => [17, 17, 17, 21, 21, 21, 10],
+        'X' => [17, 17, 10, 4, 10, 17, 17],
+        'Y' => [17, 17, 10, 4, 4, 4, 4],
+        'Z' => [31, 1, 2, 4, 8, 16, 31],
         '0' => [14, 17, 19, 21, 25, 17, 14],
         '1' => [4, 12, 4, 4, 4, 4, 14],
         '.' => [0, 0, 0, 0, 0, 12, 12],
