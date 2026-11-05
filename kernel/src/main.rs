@@ -76,7 +76,7 @@ fn initialise_graphics() -> Option<graphics::Console> {
     let mut framebuffers = response.framebuffers();
     let Some(framebuffer) = framebuffers.next() else {
         let _ = writeln!(serial::Writer, "Framebuffer: no display devices available");
-        return;
+        return None;
     };
 
     let _ = writeln!(
