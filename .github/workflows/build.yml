@@ -76,8 +76,8 @@ jobs:
           grep -F "Frame memory test: passed" build/serial.log
           grep -F "Display: classic monochrome text console" build/serial.log
           grep -F "Display: framebuffer text console ready" build/serial.log
-          grep -F "Initialising keyboard..... [ OK ]" build/serial.log
-          grep -F "Starting command shell.... [ OK ]" build/serial.log
+          grep -F "Initialising keyboard...... [ OK ]" build/serial.log
+          grep -F "Starting command shell..... [ OK ]" build/serial.log
           grep -F "Type HELP for a list of commands." build/serial.log
           grep -F "Kanga OS [Version 0.1.0]" build/serial.log
           grep -F "No filesystem is mounted." build/serial.log
