@@ -114,7 +114,13 @@ fn decode(raw: RawTime, status_b: u8) -> Option<DateTime> {
 
     let full_year = century
         .map(|century| u16::from(century) * 100 + u16::from(year))
-        .unwrap_or_else(|| if year >= 70 { 1900 + u16::from(year) } else { 2000 + u16::from(year) });
+        .unwrap_or_else(|| {
+            if year >= 70 {
+                1900 + u16::from(year)
+            } else {
+                2000 + u16::from(year)
+            }
+        });
 
     if seconds > 59
         || minutes > 59
