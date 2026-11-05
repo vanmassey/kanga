@@ -93,7 +93,11 @@ fn translate(scancode: u8) -> Option<Key> {
 }
 
 fn shifted_char(shifted: bool, shifted_value: u8, normal_value: u8) -> u8 {
-    if shifted { shifted_value } else { normal_value }
+    if shifted {
+        shifted_value
+    } else {
+        normal_value
+    }
 }
 
 fn letter_or_symbol(code: u8, shifted: bool, caps: bool, normal: &[u8], upper: &[u8]) -> u8 {
@@ -103,7 +107,11 @@ fn letter_or_symbol(code: u8, shifted: bool, caps: bool, normal: &[u8], upper: &
         _ => 0x2C,
     };
     let index = (code - start) as usize;
-    if shifted ^ caps { upper[index] } else { normal[index] }
+    if shifted ^ caps {
+        upper[index]
+    } else {
+        normal[index]
+    }
 }
 
 unsafe fn inb(port: u16) -> u8 {
