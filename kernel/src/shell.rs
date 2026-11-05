@@ -102,6 +102,9 @@ fn execute(command_line: &[u8], console: Option<&mut Console>) {
         let _ = writeln!(output, "MEM       show memory support status");
         let _ = writeln!(output, "TIME      show system uptime and timer ticks");
         let _ = writeln!(output, "DATE      show the CMOS real-time clock");
+        let _ = writeln!(output, "BEEP      play a short PC speaker tone");
+        let _ = writeln!(output, "UPTIME    show system uptime");
+        let _ = writeln!(output, "ABOUT     show project information");
         let _ = writeln!(output, "HELP      display this help");
         let _ = writeln!(output, "HALT      stop the processor");
     } else if command.eq_ignore_ascii_case(b"dir") {
@@ -141,7 +144,7 @@ fn execute(command_line: &[u8], console: Option<&mut Console>) {
             tenths % 10
         );
         let _ = writeln!(output, "PIT timer ticks: {ticks} (100 Hz)");
-    } else if command.eq_ignore_ascii_case(b"date") {
+    } else if command.eq_ignore_ascii_case(b"date") || command.eq_ignore_ascii_case(b"clock") || command.eq_ignore_ascii_case(b"rtc") {
         match crate::rtc::read() {
             Some(time) => {
                 let _ = writeln!(
@@ -154,6 +157,17 @@ fn execute(command_line: &[u8], console: Option<&mut Console>) {
                 let _ = writeln!(output, "RTC unavailable or returned an invalid date/time.");
             }
         }
+    } else if command.eq_ignore_ascii_case(b"uptime") {
+        let tenths = crate::pit::elapsed_tenths();
+        let _ = writeln!(output, "Uptime: {}.{:01} seconds", tenths / 10, tenths % 10);
+    } else if command.eq_ignore_ascii_case(b"beep") {
+        crate::speaker::beep();
+        let _ = writeln!(output, "PC speaker: 880 Hz tone played.");
+    } else if command.eq_ignore_ascii_case(b"about") {
+        let _ = writeln!(output, "Kanga is an independent x86-64 operating system.");
+        let _ = writeln!(output, "Written in Rust; booted with Limine.");
+        let _ = writeln!(output, "Project version: {}", env!("CARGO_PKG_VERSION"));
+        let _ = writeln!(output, "License: GPL-2.0-only");
     } else if command.eq_ignore_ascii_case(b"mem") {
         let _ = writeln!(output, "Physical frame allocation: initial 4 KiB allocator");
         let _ = writeln!(
