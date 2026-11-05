@@ -1,6 +1,7 @@
 use limine::memory_map::{Entry, EntryType};
 
 pub const PAGE_SIZE: u64 = 4096;
+const LOW_MEMORY_RESERVED_END: u64 = 0x10_0000;
 
 /// A monotonic allocator for page-aligned frames in usable physical regions.
 ///
@@ -44,9 +45,14 @@ impl<'a> FrameAllocator<'a> {
                 continue;
             }
 
-            let end = entry.base.checked_add(entry.length)?;
-            let region_start = entry.base.max(PAGE_SIZE);
-            let aligned_start = region_start.checked_add(PAGE_SIZE - 1)? & !(PAGE_SIZE - 1);
+            let Some(end) = entry.base.checked_add(entry.length) else {
+                continue;
+            };
+            let region_start = entry.base.max(LOW_MEMORY_RESERVED_END);
+            let Some(aligned_start) = region_start.checked_add(PAGE_SIZE - 1) else {
+                continue;
+            };
+            let aligned_start = aligned_start & !(PAGE_SIZE - 1);
             let Some(first_frame_end) = aligned_start.checked_add(PAGE_SIZE) else {
                 continue;
             };
