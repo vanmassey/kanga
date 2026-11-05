@@ -10,8 +10,8 @@ use limine::request::{
 };
 use limine::BaseRevision;
 
-mod font;
 mod filesystem;
+mod font;
 mod graphics;
 mod interrupts;
 mod keyboard;
