@@ -30,6 +30,7 @@ pub fn run(mut console: Option<Console>) -> ! {
         let _ = writeln!(output, "Setting up interrupts...... [ OK ]");
         let _ = writeln!(output, "Initialising keyboard...... [ OK ]");
         let _ = writeln!(output, "Starting command shell..... [ OK ]");
+        let _ = writeln!(output, "KangaFS RAM filesystem..... [ OK ]");
         let _ = writeln!(output);
         let _ = writeln!(output, "Type HELP for a list of commands.");
         let _ = writeln!(output);
