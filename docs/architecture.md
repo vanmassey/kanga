@@ -4,7 +4,7 @@ Kanga begins as a monolithic x86-64 kernel written in freestanding Rust. Its int
 
 ## Implemented foundation
 
-The current boot path is a single x86-64 kernel entry point. Limine supplies the memory map, higher-half direct-map offset and RGB framebuffer. The kernel reports boot information over COM1, performs an initial physical-frame allocation and memory access check, and draws a non-interactive framebuffer splash screen. The splash screen is diagnostic output, not yet a terminal or windowing system.
+The current boot path is a single x86-64 kernel entry point. Limine supplies the memory map, higher-half direct-map offset and RGB framebuffer. The kernel reports boot information over COM1, performs an initial physical-frame allocation and memory access check, and draws a framebuffer boot splash before switching to a small scrolling text console. The console supports ASCII output, line wrapping, backspace, clear-screen and scrolling; keyboard input is polled from the legacy PS/2 controller. Shell output is mirrored to COM1 for diagnostics. There is no interrupt-driven input, terminal escape-sequence support, desktop or windowing system yet.
 
 ## Planned components
 
@@ -30,6 +30,6 @@ The current boot path is a single x86-64 kernel entry point. Limine supplies the
 5. Introduce kernel allocation, device discovery and storage.
 6. Add scheduling, user mode and system calls.
 7. Build filesystem and networking interfaces.
-8. Add a text console and keyboard input, then build a user environment and graphical stack.
+8. Replace polling input with interrupt-driven keyboard handling and add exception/interrupt infrastructure.\n9. Build a heap, persistent memory manager, storage and filesystem support.\n10. Introduce user mode, processes, system calls and a fuller user environment.
 
 These are design plans, not claims that the components already exist.
