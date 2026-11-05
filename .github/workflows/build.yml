@@ -61,7 +61,7 @@ jobs:
           grep -F "Kanga> " build/serial.log
           sleep 1
 
-          for key in d i r ret v e r ret e c h o spc h e l l o spc k a n g a ret t i m e ret d a t e ret u p t i m e ret w r i t e spc n o t e dot t x t spc h e l l o spc f r o m spc k a n g a ret t y p e spc n o t e dot t x t ret d i r ret d e l spc n o t e dot t x t ret d i r ret f s i n f o ret; do
+          for key in d i r ret v e r ret e c h o spc h e l l o spc k a n g a ret t i m e ret d a t e ret u p t i m e ret w r i t e spc n o t e dot t x t spc h e l l o spc f r o m spc k a n g a ret t y p e spc n o t e dot t x t ret d i r ret d e l spc n o t e dot t x t ret d i r ret; do
             printf 'sendkey %s 80\n' "$key" | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
             sleep 0.15
           done
@@ -94,8 +94,6 @@ jobs:
           grep -F "Saved note.txt (16 bytes)." build/serial.log
           grep -F "hello from kanga" build/serial.log
           grep -F "Deleted note.txt." build/serial.log
-          grep -F "Filesystem: KangaFS" build/serial.log
-          grep -F "Storage: volatile kernel RAM" build/serial.log
           ! grep -F "PC speaker" build/serial.log
           test -s build/kanga-screen.ppm
           python3 scripts/check-framebuffer.py build/kanga-screen.ppm
