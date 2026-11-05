@@ -7,7 +7,8 @@ pub fn beep() {
     const PIT_CHANNEL_2: u16 = 0x42;
     const PIT_COMMAND: u16 = 0x43;
     const SPEAKER_CONTROL: u16 = 0x61;
-    const DIVISOR: u16 = 1_193_182 / 880;
+    // PIT input clock is 1,193,182 Hz; calculate in u32 before narrowing.
+    const DIVISOR: u16 = (1_193_182_u32 / 880) as u16;
 
     let start = crate::pit::ticks();
     // SAFETY: Configure PIT channel 2 and gate the conventional PC speaker.
