@@ -9,7 +9,10 @@ const LINE_CAPACITY: usize = 80;
 pub fn run() -> ! {
     let _ = writeln!(crate::serial::Writer, "\nKanga interactive shell");
     let _ = writeln!(crate::serial::Writer, "Input: PS/2 keyboard (polling)");
-    let _ = writeln!(crate::serial::Writer, "Type 'help' for available commands.\n");
+    let _ = writeln!(
+        crate::serial::Writer,
+        "Type 'help' for available commands.\n"
+    );
     prompt();
 
     let mut line = [0_u8; LINE_CAPACITY];
@@ -53,10 +56,19 @@ fn execute(command: &[u8]) {
         b"" => {}
         b"help" => {
             let _ = writeln!(crate::serial::Writer, "help     - show this command list");
-            let _ = writeln!(crate::serial::Writer, "clear    - print a fresh terminal page");
-            let _ = writeln!(crate::serial::Writer, "info     - show kernel and platform details");
+            let _ = writeln!(
+                crate::serial::Writer,
+                "clear    - print a fresh terminal page"
+            );
+            let _ = writeln!(
+                crate::serial::Writer,
+                "info     - show kernel and platform details"
+            );
             let _ = writeln!(crate::serial::Writer, "version  - show the Kanga version");
-            let _ = writeln!(crate::serial::Writer, "mem      - explain current memory support");
+            let _ = writeln!(
+                crate::serial::Writer,
+                "mem      - explain current memory support"
+            );
             let _ = writeln!(crate::serial::Writer, "halt     - halt the processor");
         }
         b"clear" => {
@@ -65,23 +77,42 @@ fn execute(command: &[u8]) {
             let _ = write!(crate::serial::Writer, "\x1b[2J\x1b[H");
         }
         b"info" => {
-            let _ = writeln!(crate::serial::Writer, "Kanga {} / x86_64", env!("CARGO_PKG_VERSION"));
+            let _ = writeln!(
+                crate::serial::Writer,
+                "Kanga {} / x86_64",
+                env!("CARGO_PKG_VERSION")
+            );
             let _ = writeln!(crate::serial::Writer, "Bootloader: Limine");
             let _ = writeln!(crate::serial::Writer, "Kernel mode: freestanding, no_std");
-            let _ = writeln!(crate::serial::Writer, "Input: legacy PS/2 keyboard, polling");
+            let _ = writeln!(
+                crate::serial::Writer,
+                "Input: legacy PS/2 keyboard, polling"
+            );
         }
         b"version" => {
-            let _ = writeln!(crate::serial::Writer, "Kanga OS {}", env!("CARGO_PKG_VERSION"));
+            let _ = writeln!(
+                crate::serial::Writer,
+                "Kanga OS {}",
+                env!("CARGO_PKG_VERSION")
+            );
         }
         b"mem" => {
-            let _ = writeln!(crate::serial::Writer, "Physical frame allocation: initial 4 KiB allocator");
-            let _ = writeln!(crate::serial::Writer, "Frame reclamation, virtual memory and heap: not implemented");
+            let _ = writeln!(
+                crate::serial::Writer,
+                "Physical frame allocation: initial 4 KiB allocator"
+            );
+            let _ = writeln!(
+                crate::serial::Writer,
+                "Frame reclamation, virtual memory and heap: not implemented"
+            );
         }
         b"halt" => {
             let _ = writeln!(crate::serial::Writer, "Halting Kanga.");
             loop {
                 // SAFETY: The user explicitly requested a processor halt.
-                unsafe { core::arch::asm!("cli; hlt", options(nomem, nostack)); }
+                unsafe {
+                    core::arch::asm!("cli; hlt", options(nomem, nostack));
+                }
             }
         }
         _ => {
