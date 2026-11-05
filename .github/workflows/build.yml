@@ -1,5 +1,5 @@
 name: build
-run-name: Kanga full boot validation
+run-name: Kanga boot diagnostics validation
 on: [push, pull_request]
 permissions:
   contents: read
