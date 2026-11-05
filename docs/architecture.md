@@ -30,6 +30,12 @@ The current boot path is a single x86-64 kernel entry point. Limine supplies the
 5. Introduce kernel allocation, device discovery and storage.
 6. Add scheduling, user mode and system calls.
 7. Build filesystem and networking interfaces.
-8. Replace polling input with interrupt-driven keyboard handling and add exception/interrupt infrastructure.\n9. Build a heap, persistent memory manager, storage and filesystem support.\n10. Introduce user mode, processes, system calls and a fuller user environment.
+8. Add a general IRQ dispatcher, spurious IRQ handling, APIC/IOAPIC support and a hardware timer.
+9. Complete virtual memory and kernel heap allocation, including frame reclamation.
+10. Add PCI enumeration and reliable storage/device drivers.
+11. Build a block-device layer, partition discovery, VFS and an initial filesystem.
+12. Add kernel threads, scheduling, user mode, system calls and an ELF loader.
+13. Add networking, beginning with Ethernet, ARP, IPv4 and ICMP, then UDP and TCP.
+14. Build userland utilities and a more capable shell; consider a graphical environment later.
 
 These are design plans, not claims that the components already exist.
