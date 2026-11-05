@@ -42,13 +42,15 @@ Create a bootable BIOS/UEFI ISO:
 make iso
 ~~~
 
-The resulting image is build/kanga.iso.
+The resulting image is `build/kanga.iso`.
 
 Run it in QEMU:
 
 ~~~sh
 make run
 ~~~
+
+This opens a graphical QEMU window so you can see Kanga's framebuffer boot screen. Serial diagnostics remain connected to the terminal.
 
 The ISO build downloads a pinned Limine 12.9.6 binary release and verifies its SHA-256 checksum before use.
 
