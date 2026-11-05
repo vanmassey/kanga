@@ -1,4 +1,4 @@
-//! Interactive kernel shell with serial and framebuffer output.
+//! Interactive kernel shell with DOS-style commands and serial/framebuffer output.
 
 use core::fmt::{self, Write};
 
@@ -27,8 +27,8 @@ pub fn run(mut console: Option<Console>) -> ! {
         let _ = writeln!(output);
         let _ = writeln!(output, "Initialising kernel........ [ OK ]");
         let _ = writeln!(output, "Setting up interrupts...... [ OK ]");
-        let _ = writeln!(output, "Initialising keyboard..... [ OK ]");
-        let _ = writeln!(output, "Starting command shell.... [ OK ]");
+        let _ = writeln!(output, "Initialising keyboard...... [ OK ]");
+        let _ = writeln!(output, "Starting command shell..... [ OK ]");
         let _ = writeln!(output);
         let _ = writeln!(output, "Type HELP for a list of commands.");
         let _ = writeln!(output);
@@ -75,53 +75,68 @@ pub fn run(mut console: Option<Console>) -> ! {
     }
 }
 
-fn execute(command: &[u8], console: Option<&mut Console>) {
-    let command = trim(command);
+fn execute(command_line: &[u8], console: Option<&mut Console>) {
+    let command_line = trim(command_line);
+    let split = command_line
+        .iter()
+        .position(|byte| byte.is_ascii_whitespace())
+        .unwrap_or(command_line.len());
+    let command = &command_line[..split];
+    let arguments = trim(&command_line[split..]);
     let mut output = Output(console);
-    match command {
-        b"" => {}
-        b"help" => {
-            let _ = writeln!(output, "help     - show this command list");
-            let _ = writeln!(output, "clear    - clear the screen");
-            let _ = writeln!(output, "info     - show kernel and platform details");
-            let _ = writeln!(output, "version  - show the Kanga version");
-            let _ = writeln!(output, "mem      - explain current memory support");
-            let _ = writeln!(output, "halt     - halt the processor");
+
+    if command.is_empty() {
+        return;
+    }
+
+    if command.eq_ignore_ascii_case(b"help") || command == b"/?" {
+        let _ = writeln!(output, "Kanga DOS-style command shell");
+        let _ = writeln!(output, "DIR       list files (requires a mounted filesystem)");
+        let _ = writeln!(output, "CLS       clear the screen");
+        let _ = writeln!(output, "VER       display the Kanga version");
+        let _ = writeln!(output, "ECHO      display a message");
+        let _ = writeln!(output, "INFO      show kernel and platform details");
+        let _ = writeln!(output, "MEM       show memory support status");
+        let _ = writeln!(output, "HELP      display this help");
+        let _ = writeln!(output, "HALT      stop the processor");
+    } else if command.eq_ignore_ascii_case(b"dir") {
+        let _ = writeln!(output, " Directory of KANGA:\\");
+        let _ = writeln!(output);
+        let _ = writeln!(output, "No filesystem is mounted.");
+        let _ = writeln!(output, "Disk and directory support are not implemented yet.");
+    } else if command.eq_ignore_ascii_case(b"cls") || command.eq_ignore_ascii_case(b"clear") {
+        if let Some(console) = output.0.as_deref_mut() {
+            console.clear();
         }
-        b"clear" => {
-            if let Some(console) = output.0.as_deref_mut() {
-                console.clear();
+    } else if command.eq_ignore_ascii_case(b"ver") || command.eq_ignore_ascii_case(b"version") {
+        let _ = writeln!(output, "Kanga OS [Version {}]", env!("CARGO_PKG_VERSION"));
+    } else if command.eq_ignore_ascii_case(b"echo") {
+        if arguments.is_empty() {
+            let _ = writeln!(output);
+        } else {
+            let message = core::str::from_utf8(arguments).unwrap_or("[invalid text]");
+            let _ = writeln!(output, "{message}");
+        }
+    } else if command.eq_ignore_ascii_case(b"info") {
+        let _ = writeln!(output, "Kanga {} / x86_64", env!("CARGO_PKG_VERSION"));
+        let _ = writeln!(output, "Bootloader: Limine");
+        let _ = writeln!(output, "Kernel mode: freestanding, no_std");
+        let _ = writeln!(output, "Input: legacy PS/2 keyboard, interrupt-driven IRQ1");
+        let _ = writeln!(output, "Display: monochrome framebuffer text console");
+    } else if command.eq_ignore_ascii_case(b"mem") {
+        let _ = writeln!(output, "Physical frame allocation: initial 4 KiB allocator");
+        let _ = writeln!(output, "Frame reclamation, virtual memory and heap: not implemented");
+    } else if command.eq_ignore_ascii_case(b"halt") {
+        let _ = writeln!(output, "Halting Kanga.");
+        loop {
+            // SAFETY: The user explicitly requested a processor halt.
+            unsafe {
+                core::arch::asm!("cli; hlt", options(nomem, nostack));
             }
         }
-        b"info" => {
-            let _ = writeln!(output, "Kanga {} / x86_64", env!("CARGO_PKG_VERSION"));
-            let _ = writeln!(output, "Bootloader: Limine");
-            let _ = writeln!(output, "Kernel mode: freestanding, no_std");
-            let _ = writeln!(output, "Input: legacy PS/2 keyboard, interrupt-driven IRQ1");
-            let _ = writeln!(output, "Display: framebuffer text console");
-        }
-        b"version" => {
-            let _ = writeln!(output, "Kanga OS {}", env!("CARGO_PKG_VERSION"));
-        }
-        b"mem" => {
-            let _ = writeln!(output, "Physical frame allocation: initial 4 KiB allocator");
-            let _ = writeln!(
-                output,
-                "Frame reclamation, virtual memory and heap: not implemented"
-            );
-        }
-        b"halt" => {
-            let _ = writeln!(output, "Halting Kanga.");
-            loop {
-                // SAFETY: The user explicitly requested a processor halt.
-                unsafe {
-                    core::arch::asm!("cli; hlt", options(nomem, nostack));
-                }
-            }
-        }
-        _ => {
-            let _ = writeln!(output, "Unknown command. Type 'help'.");
-        }
+    } else {
+        let text = core::str::from_utf8(command).unwrap_or("[invalid command]");
+        let _ = writeln!(output, "Bad command or file name: {text}");
     }
 }
 
