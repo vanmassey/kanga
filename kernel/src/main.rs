@@ -19,6 +19,7 @@ mod pic;
 mod pit;
 mod rtc;
 mod shell;
+mod speaker;
 
 #[used]
 #[link_section = ".limine_requests_start"]
