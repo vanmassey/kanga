@@ -83,11 +83,7 @@ fn execute(command: &[u8], console: Option<&mut Console>) {
             }
         }
         b"info" => {
-            let _ = writeln!(
-                output,
-                "Kanga {} / x86_64",
-                env!("CARGO_PKG_VERSION")
-            );
+            let _ = writeln!(output, "Kanga {} / x86_64", env!("CARGO_PKG_VERSION"));
             let _ = writeln!(output, "Bootloader: Limine");
             let _ = writeln!(output, "Kernel mode: freestanding, no_std");
             let _ = writeln!(output, "Input: legacy PS/2 keyboard, polling");
