@@ -3,6 +3,11 @@ use limine::memory_map::{Entry, EntryType};
 pub const PAGE_SIZE: u64 = 4096;
 const LOW_MEMORY_RESERVED_END: u64 = 0x10_0000;
 
+/// Convert a physical address through Limine's higher-half direct map offset.
+pub fn physical_to_virtual(physical_address: u64, hhdm_offset: u64) -> Option<u64> {
+    physical_address.checked_add(hhdm_offset)
+}
+
 /// A monotonic allocator for page-aligned frames in usable physical regions.
 ///
 /// Frames are handed out once and are not returned. A free-list and frame
