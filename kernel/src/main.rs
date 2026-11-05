@@ -60,13 +60,19 @@ fn report_memory_map() {
 
     let _ = writeln!(serial::Writer, "Memory map entries: {}", entries.len());
     let _ = writeln!(serial::Writer, "Usable memory regions: {}", usable_regions);
-    let _ = writeln!(serial::Writer, "Usable memory: {} MiB", usable_bytes / (1024 * 1024));
+    let _ = writeln!(
+        serial::Writer,
+        "Usable memory: {} MiB",
+        usable_bytes / (1024 * 1024)
+    );
 }
 
 fn stop() -> ! {
     loop {
         // SAFETY: Kanga runs in the privileged kernel context.
-        unsafe { core::arch::asm!("cli; hlt", options(nomem, nostack)); }
+        unsafe {
+            core::arch::asm!("cli; hlt", options(nomem, nostack));
+        }
     }
 }
 
@@ -129,7 +135,9 @@ mod serial {
                 // SAFETY: COM1 line-status register is readable after UART setup.
                 if unsafe { input(COM1 + 5) } & 0x20 != 0 {
                     // SAFETY: COM1 data register is the UART transmit port.
-                    unsafe { out(COM1, byte); }
+                    unsafe {
+                        out(COM1, byte);
+                    }
                     return;
                 }
                 core::hint::spin_loop();
