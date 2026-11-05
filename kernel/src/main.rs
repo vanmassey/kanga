@@ -91,15 +91,7 @@ fn initialise_graphics() -> Option<graphics::Console> {
         framebuffer.bpp()
     );
 
-    // SAFETY: The framebuffer is provided by Limine and remains mapped.
-    if unsafe { graphics::draw_boot_screen(&framebuffer) } {
-        let _ = writeln!(serial::Writer, "Display: Kanga graphical boot screen ready");
-    } else {
-        let _ = writeln!(
-            serial::Writer,
-            "Display: unsupported framebuffer format or dimensions"
-        );
-    }
+    let _ = writeln!(serial::Writer, "Display: classic monochrome text console");
 
     // SAFETY: Limine's framebuffer mapping remains active for the kernel run.
     let console = unsafe { graphics::Console::new(&framebuffer) };
