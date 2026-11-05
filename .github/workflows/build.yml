@@ -92,7 +92,7 @@ jobs:
           grep -F "Kanga OS [Version 0.1.0]" build/serial.log
           grep -F "KangaFS RAM filesystem..... [ OK ]" build/serial.log
           grep -F "Saved note.txt (16 bytes)." build/serial.log
-          grep -F "Hello from Kanga" build/serial.log
+          grep -F "hello from kanga" build/serial.log
           grep -F "Deleted note.txt." build/serial.log
           grep -F "Filesystem: KangaFS" build/serial.log
           grep -F "Storage: volatile kernel RAM" build/serial.log
