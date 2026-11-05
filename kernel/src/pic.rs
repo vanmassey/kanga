@@ -31,7 +31,7 @@ pub fn initialise() {
     }
 }
 
-pub fn acknowledge_keyboard() {
+pub fn acknowledge_master_irq() {
     // SAFETY: Send end-of-interrupt to the master PIC for IRQ1.
     unsafe {
         write(MASTER_COMMAND, 0x20);
