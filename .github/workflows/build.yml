@@ -26,7 +26,7 @@ jobs:
           set -eu
           rm -f build/serial.log build/qemu-monitor.sock
           qemu-system-x86_64 \
-            -machine q35 -m 256M -boot d -cdrom build/kanga.iso \
+            -machine pc -m 256M -boot d -cdrom build/kanga.iso \
             -serial file:build/serial.log \
             -monitor unix:build/qemu-monitor.sock,server,nowait \
             -display none -no-reboot -no-shutdown &
