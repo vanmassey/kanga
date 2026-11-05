@@ -22,10 +22,17 @@ impl Write for Output<'_> {
 pub fn run(mut console: Option<Console>) -> ! {
     {
         let mut output = Output(console.as_mut());
-        let _ = writeln!(output, "\nKanga interactive shell");
-        let _ = writeln!(output, "Input: PS/2 keyboard (interrupt-driven IRQ1)");
-        let _ = writeln!(output, "Type 'help' for available commands.\n");
-        let _ = write!(output, "kanga> ");
+        let _ = writeln!(output, "Kanga OS 0.1.0");
+        let _ = writeln!(output, "(C) 2026 Kanga Development Team");
+        let _ = writeln!(output);
+        let _ = writeln!(output, "Initialising kernel........ [ OK ]");
+        let _ = writeln!(output, "Setting up interrupts...... [ OK ]");
+        let _ = writeln!(output, "Initialising keyboard..... [ OK ]");
+        let _ = writeln!(output, "Starting command shell.... [ OK ]");
+        let _ = writeln!(output);
+        let _ = writeln!(output, "Type HELP for a list of commands.");
+        let _ = writeln!(output);
+        let _ = write!(output, "Kanga> ");
     }
 
     let mut line = [0_u8; LINE_CAPACITY];
@@ -55,7 +62,7 @@ pub fn run(mut console: Option<Console>) -> ! {
                     execute(&line[..length], console.as_mut());
                     length = 0;
                     let mut output = Output(console.as_mut());
-                    let _ = write!(output, "kanga> ");
+                    let _ = write!(output, "Kanga> ");
                 }
             }
         } else {
