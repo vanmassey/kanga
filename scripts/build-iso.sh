@@ -5,7 +5,7 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$ROOT"
 
 LIMINE_VERSION=12.9.6
-LIMINE_SHA256= b38aabb042b0c0f9f562b7741be3c1204838d7bbacfa78bb411c674bd5b984ee
+LIMINE_SHA256=b38aabb042b0c0f9f562b7741be3c1204838d7bbacfa78bb411c674bd5b984ee
 LIMINE_ARCHIVE="build/limine-binary.tar.gz"
 LIMINE_URL="https://github.com/Limine-Bootloader/Limine/releases/download/v${LIMINE_VERSION}/limine-binary.tar.gz"
 
@@ -16,7 +16,7 @@ fi
 printf '%s  %s\n' "$LIMINE_SHA256" "$LIMINE_ARCHIVE" | sha256sum -c -
 
 mkdir -p build/limine
- tar -xzf "$LIMINE_ARCHIVE" -C build/limine
+tar -xzf "$LIMINE_ARCHIVE" -C build/limine
 
 find_file() {
     find build/limine -type f -name "$1" -print -quit
