@@ -4,7 +4,7 @@ Kanga begins as a monolithic x86-64 kernel written in freestanding Rust. Its int
 
 ## Implemented foundation
 
-The current boot path is a single x86-64 kernel entry point. Limine supplies the memory map, higher-half direct-map offset and RGB framebuffer. The kernel reports boot information over COM1, performs an initial physical-frame allocation and memory access check, and draws a framebuffer boot splash before switching to a small scrolling text console. The console supports ASCII output, line wrapping, backspace, clear-screen and scrolling; keyboard input is polled from the legacy PS/2 controller. Shell output is mirrored to COM1 for diagnostics. The kernel installs a 256-entry IDT using the active code-segment selector and configures exception gates for vectors 0–31. CPU exceptions with and without error codes have separate ABI-correct handlers; fatal exceptions are reported to serial and halt the CPU. The processor's maskable-interrupt flag remains disabled, and PIC/APIC routing, IRQ dispatch and interrupt-driven input are not implemented. There is no terminal escape-sequence support, desktop or windowing system yet.
+The current boot path is a single x86-64 kernel entry point. Limine supplies the memory map, higher-half direct-map offset and RGB framebuffer. The kernel reports boot information over COM1, performs an initial physical-frame allocation and memory access check, and draws a framebuffer boot splash before switching to a small scrolling text console. The console supports ASCII output, line wrapping, backspace, clear-screen and scrolling; keyboard input is delivered through IRQ1 from the legacy PS/2 controller. The IRQ handler only enqueues raw scancodes into a fixed-size atomic ring buffer; translation and shell processing happen in the main loop. Shell output is mirrored to COM1 for diagnostics. The kernel installs a 256-entry IDT using the active code-segment selector and configures exception gates for vectors 0–31. CPU exceptions with and without error codes have separate ABI-correct handlers; fatal exceptions are reported to serial and halt the CPU. The dual 8259 PIC is remapped to vectors 0x20–0x2F, with only IRQ1 unmasked. The keyboard IRQ gate acknowledges the master PIC after copying the scancode into the queue. APIC routing, timer IRQs and a general IRQ dispatcher remain unimplemented. There is no terminal escape-sequence support, desktop or windowing system yet.
 
 ## Planned components
 
@@ -13,7 +13,7 @@ The current boot path is a single x86-64 kernel entry point. Limine supplies the
 | Architecture | CPU setup, descriptor tables, interrupt controllers and low-level I/O |
 | Boot | Bootloader information and hand-off validation |
 | Memory | Physical frames, virtual address spaces and kernel heap |
-| Interrupts | IDT and fatal CPU exception gates are installed; PIC/APIC routing and IRQ dispatch remain planned |
+| Interrupts | IDT, fatal CPU exception gates, remapped 8259 PIC and keyboard IRQ1 are implemented; APIC and general IRQ dispatch remain planned |
 | Time | Hardware clock source and scheduler timer |
 | Drivers | PCI discovery and device drivers |
 | Tasks | Threads, processes and scheduling |
@@ -26,7 +26,7 @@ The current boot path is a single x86-64 kernel entry point. Limine supplies the
 1. Establish a repeatable freestanding build and boot pipeline.
 2. Capture and validate the bootloader memory map.
 3. Implement physical frame allocation and page-table management.
-4. Add PIC/APIC routing, IRQ dispatch, a timer and interrupt-driven device input.
+4. Add a general IRQ dispatcher, APIC support and a hardware timer.
 5. Introduce kernel allocation, device discovery and storage.
 6. Add scheduling, user mode and system calls.
 7. Build filesystem and networking interfaces.
