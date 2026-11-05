@@ -116,7 +116,6 @@ extern "x86-interrupt" fn timer_irq(_frame: InterruptStackFrame) {
 }
 
 extern "x86-interrupt" fn keyboard_irq(_frame: InterruptStackFrame) {
-    let _ = writeln!(crate::serial::Writer, "DEBUG: keyboard IRQ1 received");
     crate::keyboard::handle_interrupt();
     crate::pic::acknowledge_master_irq();
 }
