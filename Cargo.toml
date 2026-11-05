@@ -1,0 +1,18 @@
+[workspace]
+members = ["kernel"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "GPL-2.0-only"
+version = "0.1.0"
+authors = ["Kanga contributors"]
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+lto = true
+codegen-units = 1
+opt-level = 2
