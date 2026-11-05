@@ -10,7 +10,9 @@ use limine::request::{
 use limine::BaseRevision;
 
 mod graphics;
+mod keyboard;
 mod memory;
+mod shell;
 
 #[used]
 #[link_section = ".limine_requests_start"]
@@ -55,8 +57,8 @@ pub extern "C" fn kanga_entry() -> ! {
 
     report_memory_map();
     initialise_graphics();
-    let _ = writeln!(serial::Writer, "Initialisation complete; kernel idle");
-    stop()
+    let _ = writeln!(serial::Writer, "Initialisation complete; entering interactive shell");
+    shell::run()
 }
 
 fn initialise_graphics() {
