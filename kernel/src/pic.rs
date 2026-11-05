@@ -32,7 +32,7 @@ pub fn initialise() {
 }
 
 pub fn acknowledge_master_irq() {
-    // SAFETY: Send end-of-interrupt to the master PIC for IRQ1.
+    // SAFETY: Send end-of-interrupt to the master PIC for IRQ0 or IRQ1.
     unsafe {
         write(MASTER_COMMAND, 0x20);
     }
