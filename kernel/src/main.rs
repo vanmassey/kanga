@@ -17,6 +17,7 @@ mod keyboard;
 mod memory;
 mod pic;
 mod pit;
+mod rtc;
 mod shell;
 
 #[used]
