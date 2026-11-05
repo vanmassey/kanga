@@ -1,94 +1,7 @@
 use limine::framebuffer::{Framebuffer, MemoryModel};
 
-const BACKGROUND: (u8, u8, u8) = (10, 16, 28);
-const PANEL: (u8, u8, u8) = (19, 30, 47);
-const ACCENT: (u8, u8, u8) = (70, 190, 150);
-const WHITE: (u8, u8, u8) = (230, 239, 246);
-const MUTED: (u8, u8, u8) = (142, 164, 181);
-
-/// Draw Kanga's first graphical boot screen into a Limine RGB framebuffer.
-///
-/// # Safety
-///
-/// The framebuffer must be the live framebuffer supplied by Limine and remain
-/// mapped and exclusively writable for the duration of this call.
-pub unsafe fn draw_boot_screen(framebuffer: &Framebuffer<'_>) -> bool {
-    if framebuffer.memory_model() != MemoryModel::RGB || framebuffer.bpp() != 32 {
-        return false;
-    }
-
-    let width = match usize::try_from(framebuffer.width()) {
-        Ok(value) if value > 0 => value,
-        _ => return false,
-    };
-    let height = match usize::try_from(framebuffer.height()) {
-        Ok(value) if value > 0 => value,
-        _ => return false,
-    };
-    let Some(minimum_pitch) = width.checked_mul(4) else {
-        return false;
-    };
-    let pitch = match usize::try_from(framebuffer.pitch()) {
-        Ok(value) if value >= minimum_pitch => value,
-        _ => return false,
-    };
-    let Some(total_bytes) = pitch.checked_mul(height) else {
-        return false;
-    };
-    if total_bytes == 0 || framebuffer.addr().is_null() {
-        return false;
-    }
-
-    let surface = Surface {
-        address: framebuffer.addr(),
-        width,
-        height,
-        pitch,
-        red_size: framebuffer.red_mask_size(),
-        red_shift: framebuffer.red_mask_shift(),
-        green_size: framebuffer.green_mask_size(),
-        green_shift: framebuffer.green_mask_shift(),
-        blue_size: framebuffer.blue_mask_size(),
-        blue_shift: framebuffer.blue_mask_shift(),
-    };
-
-    // SAFETY: The caller guarantees the live Limine framebuffer is writable.
-    unsafe {
-        surface.fill(BACKGROUND);
-        let scale = (width / 240).min(height / 150).clamp(1, 4);
-        let margin = 24 * scale;
-        let panel_x = margin;
-        let panel_y = margin;
-        let panel_width = width.saturating_sub(margin.saturating_mul(2));
-        let panel_height = height.saturating_sub(margin.saturating_mul(2));
-
-        surface.rect(panel_x, panel_y, panel_width, 5 * scale, ACCENT);
-        surface.rect(
-            panel_x,
-            panel_y + 5 * scale,
-            panel_width,
-            panel_height.saturating_sub(5 * scale),
-            PANEL,
-        );
-
-        let text_x = panel_x + 28 * scale;
-        let mut text_y = panel_y + 28 * scale;
-        surface.text(text_x, text_y, "KANGA", scale * 3, ACCENT);
-        text_y += 30 * scale;
-        surface.text(text_x, text_y, "SYSTEM READY", scale * 2, WHITE);
-        text_y += 28 * scale;
-        surface.text(text_x, text_y, "BOOTED VIA LIMINE", scale, MUTED);
-        text_y += 24 * scale;
-        surface.text(text_x, text_y, "MEMORY MANAGER ONLINE", scale, WHITE);
-        text_y += 18 * scale;
-        surface.text(text_x, text_y, "FRAMEBUFFER OUTPUT ACTIVE", scale, WHITE);
-
-        let footer_y = panel_y + panel_height.saturating_sub(24 * scale);
-        surface.text(text_x, footer_y, "KANGA OS / 0.1.0", scale, MUTED);
-    }
-
-    true
-}
+const BACKGROUND: (u8, u8, u8) = (0, 0, 0);
+const WHITE: (u8, u8, u8) = (192, 192, 192);
 
 struct Surface {
     address: *mut u8,
@@ -134,32 +47,7 @@ impl Surface {
         }
     }
 
-    unsafe fn text(&self, x: usize, y: usize, value: &str, scale: usize, colour: (u8, u8, u8)) {
-        let mut cursor = x;
-        for character in value.chars() {
-            let glyph = glyph(character);
-            for (row, bits) in glyph.iter().enumerate() {
-                for column in 0..5 {
-                    if bits & (1 << (4 - column)) != 0 {
-                        // SAFETY: rect clips each glyph pixel to the framebuffer.
-                        unsafe {
-                            self.rect(
-                                cursor + column * scale,
-                                y + row * scale,
-                                scale,
-                                scale,
-                                colour,
-                            );
-                        }
-                    }
-                }
-            }
-            cursor = cursor.saturating_add(6 * scale);
-            if cursor >= self.width {
-                break;
-            }
-        }
-    }
+
 }
 
 fn channel(value: u8, size: u8, shift: u8) -> u32 {
@@ -200,10 +88,25 @@ fn glyph(character: char) -> [u8; 7] {
         'Z' => [31, 1, 2, 4, 8, 16, 31],
         '0' => [14, 17, 19, 21, 25, 17, 14],
         '1' => [4, 12, 4, 4, 4, 4, 14],
+        '2' => [14, 17, 1, 2, 4, 8, 31],
+        '3' => [30, 1, 1, 14, 1, 1, 30],
+        '4' => [2, 6, 10, 18, 31, 2, 2],
+        '5' => [31, 16, 16, 30, 1, 1, 30],
+        '6' => [14, 16, 16, 30, 17, 17, 14],
+        '7' => [31, 1, 2, 4, 8, 8, 8],
+        '8' => [14, 17, 17, 14, 17, 17, 14],
+        '9' => [14, 17, 17, 15, 1, 1, 14],
         '.' => [0, 0, 0, 0, 0, 12, 12],
         '/' => [1, 2, 2, 4, 8, 8, 16],
         '-' => [0, 0, 0, 31, 0, 0, 0],
         '>' => [16, 8, 4, 2, 4, 8, 16],
+        '!' => [4, 4, 4, 4, 4, 0, 4],
+        ',' => [0, 0, 0, 0, 4, 4, 8],
+        '(' => [2, 4, 8, 8, 8, 4, 2],
+        ')' => [8, 4, 2, 2, 2, 4, 8],
+        ';' => [0, 4, 4, 0, 4, 4, 8],
+        '*' => [0, 21, 14, 31, 14, 21, 0],
+        '#' => [10, 31, 10, 10, 31, 10, 0],
         '<' => [1, 2, 4, 8, 4, 2, 1],
         ':' => [0, 12, 12, 0, 12, 12, 0],
         '?' => [14, 17, 1, 2, 4, 0, 4],
@@ -216,9 +119,8 @@ fn glyph(character: char) -> [u8; 7] {
     }
 }
 
-const CONSOLE_SCALE: usize = 2;
-const CELL_WIDTH: usize = 12;
-const CELL_HEIGHT: usize = 18;
+const CELL_WIDTH: usize = 8;
+const CELL_HEIGHT: usize = 16;
 
 /// A small framebuffer text console. The framebuffer mapping must remain valid
 /// and exclusively writable for the lifetime of this value.
@@ -299,16 +201,19 @@ impl Console {
         }
         let x = self.column * CELL_WIDTH;
         let y = self.row * CELL_HEIGHT;
-        // SAFETY: The cell is within the computed grid. Glyph drawing clips.
-        let glyph_character = character.to_ascii_uppercase() as u8;
-        let glyph_text = [glyph_character];
-        // SAFETY: ASCII input is always valid UTF-8.
-        let glyph_text = unsafe { core::str::from_utf8_unchecked(&glyph_text) };
-        // SAFETY: The cell is within the computed grid. Glyph drawing clips.
+        let rows = glyph(character.to_ascii_uppercase());
+        // Render a compact 5x7 bitmap in a classic 8x16 text cell. Each
+        // glyph scanline is doubled vertically, with one-pixel side bearings.
+        // SAFETY: The cell is inside the validated console grid.
         unsafe {
             self.surface.rect(x, y, CELL_WIDTH, CELL_HEIGHT, BACKGROUND);
-            self.surface
-                .text(x + 1, y + 1, glyph_text, CONSOLE_SCALE, WHITE);
+            for (row, bits) in rows.iter().enumerate() {
+                for column in 0..5 {
+                    if bits & (1 << (4 - column)) != 0 {
+                        self.surface.rect(x + 1 + column, y + 1 + row * 2, 1, 2, WHITE);
+                    }
+                }
+            }
         }
         self.column += 1;
         self.draw_prompt_cursor();
@@ -369,7 +274,7 @@ impl Console {
         let x = self.column * CELL_WIDTH;
         let y = self.row * CELL_HEIGHT + CELL_HEIGHT - 2;
         // SAFETY: Cursor coordinates are within the console cell.
-        unsafe { self.surface.rect(x, y, 8, 2, ACCENT) };
+        unsafe { self.surface.rect(x, y + CELL_HEIGHT - 2, 7, 1, WHITE) };
     }
 }
 
