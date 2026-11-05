@@ -60,8 +60,14 @@ jobs:
           done
           grep -F "Kanga> " build/serial.log
 
-          for key in d i r ret v e r ret e c h o spc h e l l o spc k a n g a ret t i m e ret d a t e ret u p t i m e ret b e e p ret a b o u t ret c a l ret; do
-            printf 'sendkey %s 80\n' "$key" | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
+          for key in d i r ret v e r ret e c h o spc h e l l o spc k a n g a ret t i m e ret d a t e ret u p t i m e ret b e e p ret; do
+            printf 'sendkey %s 80\\n' "$key" | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
+            sleep 0.15
+          done
+          # Let the blocking speaker tone finish before injecting the next command.
+          sleep 1
+          for key in a b o u t ret c a l ret; do
+            printf 'sendkey %s 80\\n' "$key" | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
             sleep 0.15
           done
           sleep 0.5
