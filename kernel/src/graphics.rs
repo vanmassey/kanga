@@ -314,6 +314,7 @@ impl Console {
             );
         }
         self.column += 1;
+        self.draw_prompt_cursor();
     }
 
     fn newline(&mut self) {
@@ -323,6 +324,7 @@ impl Console {
             self.scroll();
             self.row = self.rows - 1;
         }
+        self.draw_prompt_cursor();
     }
 
     fn backspace(&mut self) {
@@ -334,6 +336,7 @@ impl Console {
         let y = self.row * CELL_HEIGHT;
         // SAFETY: The cursor remains within the console grid.
         unsafe { self.surface.rect(x, y, CELL_WIDTH, CELL_HEIGHT, BACKGROUND) };
+        self.draw_prompt_cursor();
     }
 
     fn scroll(&mut self) {
