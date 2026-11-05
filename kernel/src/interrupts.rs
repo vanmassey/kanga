@@ -82,6 +82,7 @@ pub fn initialise() {
         IDT[21] = IdtEntry::new(exception_with_error as usize, selector);
         IDT[29] = IdtEntry::new(exception_with_error as usize, selector);
         IDT[30] = IdtEntry::new(exception_with_error as usize, selector);
+        IDT[0x21] = IdtEntry::new(keyboard_irq as usize, selector);
 
         let pointer = IdtPointer {
             limit: (core::mem::size_of::<[IdtEntry; 256]>() - 1) as u16,
@@ -99,6 +100,11 @@ pub fn initialise() {
         crate::serial::Writer,
         "Interrupts: maskable interrupts remain disabled"
     );
+}
+
+extern "x86-interrupt" fn keyboard_irq(_frame: InterruptStackFrame) {
+    crate::keyboard::handle_interrupt();
+    crate::pic::acknowledge_keyboard();
 }
 
 extern "x86-interrupt" fn exception_without_error(_frame: InterruptStackFrame) {
