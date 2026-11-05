@@ -175,6 +175,7 @@ fn execute(command_line: &[u8], console: Option<&mut Console>) {
         crate::speaker::beep();
         let _ = writeln!(output, "PC speaker: 880 Hz tone played.");
     } else if command.eq_ignore_ascii_case(b"about") {
+        let _ = writeln!(crate::serial::Writer, "Shell: ABOUT command entered");
         let _ = writeln!(output, "Kanga is an independent x86-64 operating system.");
         let _ = writeln!(output, "Written in Rust; booted with Limine.");
         let _ = writeln!(output, "Project version: {}", env!("CARGO_PKG_VERSION"));
