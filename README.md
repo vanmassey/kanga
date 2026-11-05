@@ -16,7 +16,8 @@ Kanga currently:
 - allocates a page-aligned 4 KiB physical frame from usable memory;
 - requests the higher-half direct map and converts the frame address; and
 - clears the allocated frame and verifies memory access with a write/read test;
-- requests a Limine RGB framebuffer, draws a graphical boot splash, then switches to a scrolling framebuffer text console; and\n- accepts interrupt-driven PS/2 keyboard input through IRQ1 in a small interactive shell, with shell output mirrored to the serial console.
+- requests a Limine RGB framebuffer, draws a graphical boot splash, then switches to a scrolling framebuffer text console; and
+- accepts interrupt-driven PS/2 keyboard input through IRQ1 in a small interactive shell, with shell output mirrored to the serial console.
 
 The framebuffer renderer currently supports 32-bit RGB modes and uses a small built-in bitmap font. Its text console supports ASCII output, wrapping, backspace, clearing and scrolling. The shell supports `help`, `clear`, `info`, `version`, `mem` and `halt`. The kernel now installs a 256-entry IDT with gates for CPU exceptions 0–31 and fatal handlers that report an exception (and error code where applicable) over serial before halting. The 8259 PIC is remapped to vectors 0x20–0x2F, with only keyboard IRQ1 unmasked. The IRQ handler copies scancodes into a fixed-size lock-free queue; translation and shell processing happen outside interrupt context. Other IRQs remain masked; APIC support, timer interrupts, terminal escape sequences and a desktop are not implemented. The physical frame allocator is an initial monotonic allocator. It reserves the first MiB of physical address space and does not yet support freeing or reclaiming frames. See docs/memory.md for the current design and limitations.
 
@@ -56,7 +57,7 @@ The ISO build downloads a pinned Limine 12.9.6 binary release and verifies its S
 
 ## Automated validation
 
-GitHub Actions checks formatting, builds the ISO, boots it in QEMU and verifies the kernel entry point, IDT installation, memory map, frame allocation, HHDM conversion, frame memory test, framebuffer console and shell startup on the serial console.
+GitHub Actions checks formatting, builds the ISO, boots it in QEMU, injects the `version` command through QEMU's virtual keyboard, and verifies the response `Kanga OS 0.1.0` over the serial console. This exercises the PS/2 IRQ1 input path as well as the boot sequence.
 
 ## Project principles
 
