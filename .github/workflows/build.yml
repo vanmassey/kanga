@@ -61,7 +61,7 @@ jobs:
           done
           grep -F "Kanga> " build/serial.log
 
-          for key in d i r ret v e r ret e c h o spc h e l l o spc k a n g a ret; do
+          for key in d i r ret v e r ret e c h o spc h e l l o spc k a n g a ret t i m e ret; do
             printf 'sendkey %s 80\n' "$key" | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
             sleep 0.15
           done
@@ -77,7 +77,8 @@ jobs:
           grep -F "Kanga kernel entry reached" build/serial.log
           grep -F "Interrupts: 256-entry IDT installed" build/serial.log
           grep -F "Interrupts: CPU exception gates 0-31 configured" build/serial.log
-          grep -F "Interrupts: PIC remapped; keyboard IRQ1 unmasked" build/serial.log
+          grep -F "Interrupts: PIC remapped; timer IRQ0 and keyboard IRQ1 unmasked" build/serial.log
+          grep -F "Timer: PIT configured at 100 Hz" build/serial.log
           grep -F "Interrupts: keyboard IRQ1 enabled" build/serial.log
           grep -F "Memory map entries:" build/serial.log
           grep -F "Physical frame allocator: allocated frame at" build/serial.log
@@ -91,6 +92,8 @@ jobs:
           grep -F "Kanga OS [Version 0.1.0]" build/serial.log
           grep -F "No filesystem is mounted." build/serial.log
           grep -F "Hello Kanga" build/serial.log
+          grep -F "System uptime:" build/serial.log
+          grep -F "PIT timer ticks:" build/serial.log
           test -s build/kanga-screen.ppm
           python3 scripts/check-framebuffer.py build/kanga-screen.ppm
       - name: Upload QEMU screenshot, bootable ISO and serial log
