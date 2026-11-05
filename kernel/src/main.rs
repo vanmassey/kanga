@@ -11,6 +11,7 @@ use limine::request::{
 use limine::BaseRevision;
 
 mod font;
+mod filesystem;
 mod graphics;
 mod interrupts;
 mod keyboard;
@@ -19,7 +20,6 @@ mod pic;
 mod pit;
 mod rtc;
 mod shell;
-mod speaker;
 
 #[used]
 #[link_section = ".limine_requests_start"]
