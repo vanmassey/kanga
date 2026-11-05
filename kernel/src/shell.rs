@@ -105,6 +105,7 @@ fn execute(command_line: &[u8], console: Option<&mut Console>) {
         let _ = writeln!(output, "BEEP      play a short PC speaker tone");
         let _ = writeln!(output, "UPTIME    show system uptime");
         let _ = writeln!(output, "ABOUT     show project information");
+        let _ = writeln!(output, "CAL       display the current month calendar");
         let _ = writeln!(output, "HELP      display this help");
         let _ = writeln!(output, "HALT      stop the processor");
     } else if command.eq_ignore_ascii_case(b"dir") {
@@ -157,6 +158,11 @@ fn execute(command_line: &[u8], console: Option<&mut Console>) {
                 let _ = writeln!(output, "RTC unavailable or returned an invalid date/time.");
             }
         }
+    } else if command.eq_ignore_ascii_case(b"cal") {
+        match crate::rtc::read() {
+            Some(time) => print_calendar(&mut output, time.year, time.month),
+            None => { let _ = writeln!(output, "Calendar unavailable: CMOS RTC read failed."); }
+        }
     } else if command.eq_ignore_ascii_case(b"uptime") {
         let tenths = crate::pit::elapsed_tenths();
         let _ = writeln!(output, "Uptime: {}.{:01} seconds", tenths / 10, tenths % 10);
@@ -196,4 +202,46 @@ fn trim(mut input: &[u8]) -> &[u8] {
         input = &input[..input.len() - 1];
     }
     input
+}
+
+fn print_calendar(output: &mut Output<'_>, year: u16, month: u8) {
+    const MONTHS: [&str; 12] = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December",
+    ];
+    let Some(name) = MONTHS.get(usize::from(month.saturating_sub(1))) else {
+        let _ = writeln!(output, "Invalid RTC month.");
+        return;
+    };
+    let first_weekday = weekday(year, month, 1);
+    let days = match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) => 29,
+        2 => 28,
+        _ => return,
+    };
+    let _ = writeln!(output, "       {name} {year}");
+    let _ = writeln!(output, "Su Mo Tu We Th Fr Sa");
+    for _ in 0..first_weekday {
+        let _ = write!(output, "   ");
+    }
+    for day in 1..=days {
+        let _ = write!(output, "{day:>2} ");
+        if (first_weekday + day) % 7 == 0 {
+            let _ = writeln!(output);
+        }
+    }
+    let _ = writeln!(output);
+}
+
+fn weekday(year: u16, month: u8, day: u8) -> u8 {
+    // Sakamoto's algorithm: Sunday = 0, Monday = 1, ... Saturday = 6.
+    const OFFSETS: [u16; 12] = [0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4];
+    let mut y = u32::from(year);
+    let m = usize::from(month);
+    if month < 3 {
+        y -= 1;
+    }
+    ((y + y / 4 - y / 100 + y / 400 + OFFSETS[m - 1] as u32 + u32::from(day)) % 7) as u8
 }
