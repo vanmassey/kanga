@@ -53,6 +53,7 @@ cp "$BIOS_SYS" "$BIOS_CD" "$UEFI_CD" "$ISO_ROOT/boot/limine/"
 cp "$UEFI_APP" "$ISO_ROOT/EFI/BOOT/BOOTX64.EFI"
 
 xorriso -as mkisofs -R -r -J -hfsplus -apm-block-size 2048 \
+    -partition_offset 16 \
     -b boot/limine/limine-bios-cd.bin \
     -no-emul-boot -boot-load-size 4 -boot-info-table \
     --efi-boot boot/limine/limine-uefi-cd.bin \
