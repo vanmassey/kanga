@@ -145,7 +145,10 @@ fn execute(command_line: &[u8], console: Option<&mut Console>) {
             tenths % 10
         );
         let _ = writeln!(output, "PIT timer ticks: {ticks} (100 Hz)");
-    } else if command.eq_ignore_ascii_case(b"date") || command.eq_ignore_ascii_case(b"clock") || command.eq_ignore_ascii_case(b"rtc") {
+    } else if command.eq_ignore_ascii_case(b"date")
+        || command.eq_ignore_ascii_case(b"clock")
+        || command.eq_ignore_ascii_case(b"rtc")
+    {
         match crate::rtc::read() {
             Some(time) => {
                 let _ = writeln!(
@@ -161,7 +164,9 @@ fn execute(command_line: &[u8], console: Option<&mut Console>) {
     } else if command.eq_ignore_ascii_case(b"cal") {
         match crate::rtc::read() {
             Some(time) => print_calendar(&mut output, time.year, time.month),
-            None => { let _ = writeln!(output, "Calendar unavailable: CMOS RTC read failed."); }
+            None => {
+                let _ = writeln!(output, "Calendar unavailable: CMOS RTC read failed.");
+            }
         }
     } else if command.eq_ignore_ascii_case(b"uptime") {
         let tenths = crate::pit::elapsed_tenths();
@@ -206,8 +211,18 @@ fn trim(mut input: &[u8]) -> &[u8] {
 
 fn print_calendar(output: &mut Output<'_>, year: u16, month: u8) {
     const MONTHS: [&str; 12] = [
-        "January", "February", "March", "April", "May", "June",
-        "July", "August", "September", "October", "November", "December",
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
     ];
     let Some(name) = MONTHS.get(usize::from(month.saturating_sub(1))) else {
         let _ = writeln!(output, "Invalid RTC month.");
