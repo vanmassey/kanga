@@ -73,9 +73,7 @@ pub extern "C" fn kanga_entry() -> ! {
 }
 
 fn initialise_graphics() -> Option<graphics::Console> {
-    // SAFETY: Limine's framebuffer response remains valid while boot mappings
-    // are retained, which Kanga does throughout this boot-time initialisation.
-    let response = unsafe { FRAMEBUFFER_REQUEST.get_response() };
+    let response = FRAMEBUFFER_REQUEST.get_response();
     let Some(response) = response else {
         let _ = writeln!(serial::Writer, "Framebuffer: no response from bootloader");
         return None;

@@ -65,28 +65,25 @@ pub fn initialise() {
     }
 
     // SAFETY: This is the single boot-time writer of the static IDT, and the
-    // processor has not enabled maskable interrupts at this point.
+    // processor has not enabled maskable interrupts at this point. Raw pointer
+    // writes avoid creating references to mutable static storage.
     unsafe {
-        for entry in &mut IDT {
-            *entry = IdtEntry::new(exception_without_error as usize, selector);
+        let idt = core::ptr::addr_of_mut!(IDT).cast::<IdtEntry>();
+        let default_handler = exception_without_error as *const () as usize;
+        for index in 0..256 {
+            idt.add(index).write(IdtEntry::new(default_handler, selector));
         }
 
-        IDT[8] = IdtEntry::new(exception_with_error as usize, selector);
-        IDT[10] = IdtEntry::new(exception_with_error as usize, selector);
-        IDT[11] = IdtEntry::new(exception_with_error as usize, selector);
-        IDT[12] = IdtEntry::new(exception_with_error as usize, selector);
-        IDT[13] = IdtEntry::new(exception_with_error as usize, selector);
-        IDT[14] = IdtEntry::new(exception_with_error as usize, selector);
-        IDT[17] = IdtEntry::new(exception_with_error as usize, selector);
-        IDT[21] = IdtEntry::new(exception_with_error as usize, selector);
-        IDT[29] = IdtEntry::new(exception_with_error as usize, selector);
-        IDT[30] = IdtEntry::new(exception_with_error as usize, selector);
-        IDT[0x20] = IdtEntry::new(timer_irq as usize, selector);
-        IDT[0x21] = IdtEntry::new(keyboard_irq as usize, selector);
+        let error_handler = exception_with_error as *const () as usize;
+        for index in [8, 10, 11, 12, 13, 14, 17, 21, 29, 30] {
+            idt.add(index).write(IdtEntry::new(error_handler, selector));
+        }
+        idt.add(0x20).write(IdtEntry::new(timer_irq as *const () as usize, selector));
+        idt.add(0x21).write(IdtEntry::new(keyboard_irq as *const () as usize, selector));
 
         let pointer = IdtPointer {
             limit: (core::mem::size_of::<[IdtEntry; 256]>() - 1) as u16,
-            base: core::ptr::addr_of!(IDT) as u64,
+            base: idt as u64,
         };
         asm!("lidt [{}]", in(reg) &pointer, options(readonly, nostack, preserves_flags));
     }
@@ -129,7 +126,7 @@ extern "x86-interrupt" fn exception_with_error(_frame: InterruptStackFrame, erro
 }
 
 fn fatal_exception(message: &str, error_code: Option<u64>) -> ! {
-    let _ = writeln!(crate::serial::Writer, "\nKANGA FATAL: {message}");
+    let _ = writeln!(crate::serial::Writer, "\\nKANGA FATAL: {message}");
     if let Some(code) = error_code {
         let _ = writeln!(
             crate::serial::Writer,
