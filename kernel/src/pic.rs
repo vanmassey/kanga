@@ -33,11 +33,15 @@ pub fn initialise() {
 
 pub fn acknowledge_keyboard() {
     // SAFETY: Send end-of-interrupt to the master PIC for IRQ1.
-    unsafe { write(MASTER_COMMAND, 0x20); }
+    unsafe {
+        write(MASTER_COMMAND, 0x20);
+    }
 }
 
 unsafe fn wait() {
-    unsafe { write(0x80, 0); }
+    unsafe {
+        write(0x80, 0);
+    }
 }
 
 unsafe fn write(port: u16, value: u8) {
