@@ -172,7 +172,7 @@ fn panic(info: &PanicInfo<'_>) -> ! {
     stop()
 }
 
-mod serial {
+pub(crate) mod serial {
     use super::*;
 
     const COM1: u16 = 0x3F8;
@@ -216,7 +216,7 @@ mod serial {
         value
     }
 
-    pub struct Writer;
+    pub(crate) struct Writer;
 
     impl Writer {
         fn byte(&mut self, byte: u8) {
