@@ -1,7 +1,6 @@
 //! x86_64 interrupt descriptor table and fatal CPU exception handlers.
 //!
-//! The table is installed with interrupts left disabled. Hardware IRQ routing
-//! and interrupt-driven device input are deliberately a later milestone.
+//! The table, legacy PIC and keyboard IRQ gate are installed before enabling IRQ1.
 
 use core::arch::asm;
 use core::fmt::Write;
@@ -96,10 +95,11 @@ pub fn initialise() {
         crate::serial::Writer,
         "Interrupts: CPU exception gates 0-31 configured"
     );
-    let _ = writeln!(
-        crate::serial::Writer,
-        "Interrupts: maskable interrupts remain disabled"
-    );
+    crate::pic::initialise();
+    let _ = writeln!(crate::serial::Writer, "Interrupts: PIC remapped; keyboard IRQ1 unmasked");
+    // SAFETY: The IDT and PIC are ready, and IRQ1 has a valid handler.
+    unsafe { asm!("sti", options(nomem, nostack)); }
+    let _ = writeln!(crate::serial::Writer, "Interrupts: keyboard IRQ1 enabled");
 }
 
 extern "x86-interrupt" fn keyboard_irq(_frame: InterruptStackFrame) {
