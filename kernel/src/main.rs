@@ -3,7 +3,8 @@
 
 use core::fmt::Write;
 use core::panic::PanicInfo;
-use limine::request::{RequestsEndMarker, RequestsStartMarker};
+use limine::memory_map::EntryType;
+use limine::request::{MemoryMapRequest, RequestsEndMarker, RequestsStartMarker};
 use limine::BaseRevision;
 
 #[used]
@@ -13,6 +14,10 @@ static REQUESTS_START_MARKER: RequestsStartMarker = RequestsStartMarker::new();
 #[used]
 #[link_section = ".limine_requests"]
 static BASE_REVISION: BaseRevision = BaseRevision::new();
+
+#[used]
+#[link_section = ".limine_requests"]
+static MEMORY_MAP_REQUEST: MemoryMapRequest = MemoryMapRequest::new();
 
 #[used]
 #[link_section = ".limine_requests_end"]
@@ -30,9 +35,32 @@ pub extern "C" fn kanga_entry() -> ! {
     let _ = writeln!(serial::Writer, "Architecture: x86_64");
     let _ = writeln!(serial::Writer, "Boot protocol: Limine");
     let _ = writeln!(serial::Writer, "Kernel entry reached successfully");
-    let _ = writeln!(serial::Writer, "System halted: next milestone is boot information and memory map");
 
+    report_memory_map();
+    let _ = writeln!(serial::Writer, "Initialisation complete; kernel idle");
     stop()
+}
+
+fn report_memory_map() {
+    let Some(memory_map) = MEMORY_MAP_REQUEST.get_response() else {
+        let _ = writeln!(serial::Writer, "Memory map: no response from bootloader");
+        return;
+    };
+
+    let entries = memory_map.entries();
+    let mut usable_bytes = 0_u64;
+    let mut usable_regions = 0_usize;
+
+    for entry in entries {
+        if entry.entry_type == EntryType::USABLE {
+            usable_bytes = usable_bytes.saturating_add(entry.length);
+            usable_regions += 1;
+        }
+    }
+
+    let _ = writeln!(serial::Writer, "Memory map entries: {}", entries.len());
+    let _ = writeln!(serial::Writer, "Usable memory regions: {}", usable_regions);
+    let _ = writeln!(serial::Writer, "Usable memory: {} MiB", usable_bytes / (1024 * 1024));
 }
 
 fn stop() -> ! {
