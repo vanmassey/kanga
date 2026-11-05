@@ -50,7 +50,7 @@ jobs:
           done
           grep -F "Kanga> " build/serial.log
 
-          for key in v e r s i o n ret; do
+          for key in d i r ret v e r ret e c h o spc h e l l o spc k a n g a ret c l s ret; do
             printf 'sendkey %s 80\n' "$key" | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
             sleep 0.15
           done
@@ -72,7 +72,9 @@ jobs:
           grep -F "Initialising keyboard..... [ OK ]" build/serial.log
           grep -F "Starting command shell.... [ OK ]" build/serial.log
           grep -F "Type HELP for a list of commands." build/serial.log
-          grep -F "Kanga OS 0.1.0" build/serial.log
+          grep -F "Kanga OS [Version 0.1.0]" build/serial.log
+          grep -F "No filesystem is mounted." build/serial.log
+          grep -F "Hello Kanga" build/serial.log
       - name: Upload bootable ISO and serial log
         uses: actions/upload-artifact@v4
         with:
