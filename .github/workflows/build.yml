@@ -37,6 +37,9 @@ jobs:
             cat build/serial.log
           fi
           grep -F "Kanga kernel entry reached" build/serial.log
+          grep -F "Interrupts: 256-entry IDT installed" build/serial.log
+          grep -F "Interrupts: CPU exception gates 0-31 configured" build/serial.log
+          grep -F "Interrupts: maskable interrupts remain disabled" build/serial.log
           grep -F "Memory map entries:" build/serial.log
           grep -F "Physical frame allocator: allocated frame at" build/serial.log
           grep -F "Allocated frame virtual address:" build/serial.log
