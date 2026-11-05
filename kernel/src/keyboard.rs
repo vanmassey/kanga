@@ -1,13 +1,15 @@
-//! Polling PS/2 keyboard driver for the legacy Set 1 scancode set.
+//! Interrupt-driven PS/2 keyboard driver for the legacy Set 1 scancode set.
 //!
-//! This deliberately uses polling rather than interrupts: it gives the first
-//! shell a small, testable input path while the IDT and interrupt controllers
-//! are still future work.
+//! IRQ1 only copies bytes into a fixed-size single-producer/single-consumer
+//! queue. Scancode translation and shell work happen later in the main loop.
 
-use core::sync::atomic::{AtomicBool, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicU8, AtomicUsize, Ordering};
 
-const STATUS_PORT: u16 = 0x64;
 const DATA_PORT: u16 = 0x60;
+const QUEUE_SIZE: usize = 64;
+static QUEUE: [AtomicU8; QUEUE_SIZE] = [const { AtomicU8::new(0) }; QUEUE_SIZE];
+static HEAD: AtomicUsize = AtomicUsize::new(0);
+static TAIL: AtomicUsize = AtomicUsize::new(0);
 static SHIFT: AtomicBool = AtomicBool::new(false);
 static CAPS_LOCK: AtomicBool = AtomicBool::new(false);
 
@@ -18,16 +20,29 @@ pub enum Key {
     Enter,
 }
 
+/// Called only from the IRQ1 handler; never formats text or allocates memory.
+pub fn handle_interrupt() {
+    // SAFETY: IRQ1 indicates that the PS/2 output buffer contains a byte.
+    let scancode = unsafe { inb(DATA_PORT) };
+    let head = HEAD.load(Ordering::Relaxed);
+    let next = (head + 1) % QUEUE_SIZE;
+    if next != TAIL.load(Ordering::Acquire) {
+        QUEUE[head].store(scancode, Ordering::Relaxed);
+        HEAD.store(next, Ordering::Release);
+    }
+}
+
 pub fn poll_key() -> Option<Key> {
-    // SAFETY: Reading the PS/2 status port is the standard controller polling
-    // operation on x86 PCs. No memory is accessed by this instruction.
-    let status = unsafe { inb(STATUS_PORT) };
-    if status & 1 == 0 {
+    let tail = TAIL.load(Ordering::Relaxed);
+    if tail == HEAD.load(Ordering::Acquire) {
         return None;
     }
+    let scancode = QUEUE[tail].load(Ordering::Relaxed);
+    TAIL.store((tail + 1) % QUEUE_SIZE, Ordering::Release);
+    translate(scancode)
+}
 
-    // SAFETY: The output-buffer-full status bit was set immediately above.
-    let scancode = unsafe { inb(DATA_PORT) };
+fn translate(scancode: u8) -> Option<Key> {
     match scancode {
         0x2A | 0x36 => {
             SHIFT.store(true, Ordering::Relaxed);
@@ -66,9 +81,9 @@ pub fn poll_key() -> Option<Key> {
         0x1A => shifted_char(shifted, b'{', b'['),
         0x1B => shifted_char(shifted, b'}', b']'),
         0x27 => shifted_char(shifted, b':', b';'),
-        0x28 => shifted_char(shifted, b'"', b'\''),
+        0x28 => shifted_char(shifted, b'"', b'\\''),
         0x29 => shifted_char(shifted, b'~', b'`'),
-        0x2B => shifted_char(shifted, b'|', b'\\'),
+        0x2B => shifted_char(shifted, b'|', b'\\\\'),
         0x33 => shifted_char(shifted, b'<', b','),
         0x34 => shifted_char(shifted, b'>', b'.'),
         0x35 => shifted_char(shifted, b'?', b'/'),
@@ -78,11 +93,7 @@ pub fn poll_key() -> Option<Key> {
 }
 
 fn shifted_char(shifted: bool, shifted_value: u8, normal_value: u8) -> u8 {
-    if shifted {
-        shifted_value
-    } else {
-        normal_value
-    }
+    if shifted { shifted_value } else { normal_value }
 }
 
 fn letter_or_symbol(code: u8, shifted: bool, caps: bool, normal: &[u8], upper: &[u8]) -> u8 {
@@ -92,23 +103,14 @@ fn letter_or_symbol(code: u8, shifted: bool, caps: bool, normal: &[u8], upper: &
         _ => 0x2C,
     };
     let index = (code - start) as usize;
-    if shifted ^ caps {
-        upper[index]
-    } else {
-        normal[index]
-    }
+    if shifted ^ caps { upper[index] } else { normal[index] }
 }
 
 unsafe fn inb(port: u16) -> u8 {
     let value: u8;
-    // SAFETY: Caller selects one of the legacy PS/2 controller I/O ports.
+    // SAFETY: Caller selects the legacy PS/2 data port.
     unsafe {
-        core::arch::asm!(
-            "in al, dx",
-            in("dx") port,
-            out("al") value,
-            options(nomem, nostack, preserves_flags)
-        );
+        core::arch::asm!("in al, dx", in("dx") port, out("al") value, options(nomem, nostack, preserves_flags));
     }
     value
 }
