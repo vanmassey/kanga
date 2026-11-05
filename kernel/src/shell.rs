@@ -59,7 +59,11 @@ pub fn run(mut console: Option<Console>) -> ! {
                 }
             }
         } else {
-            core::hint::spin_loop();
+            // SAFETY: STI followed by HLT avoids a lost-wakeup race: pending
+            // IRQs are recognised immediately after the halt instruction.
+            unsafe {
+                core::arch::asm!("sti; hlt", options(nomem, nostack));
+            }
         }
     }
 }
