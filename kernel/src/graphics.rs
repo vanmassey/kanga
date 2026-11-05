@@ -46,8 +46,6 @@ impl Surface {
                 .write_volatile(packed);
         }
     }
-
-
 }
 
 fn channel(value: u8, size: u8, shift: u8) -> u32 {
@@ -212,7 +210,8 @@ impl Console {
             for (row, bits) in rows.iter().enumerate() {
                 for column in 0..5 {
                     if bits & (1 << (4 - column)) != 0 {
-                        self.surface.rect(x + 1 + column, y + 1 + row * 2, 1, 2, WHITE);
+                        self.surface
+                            .rect(x + 1 + column, y + 1 + row * 2, 1, 2, WHITE);
                     }
                 }
             }
