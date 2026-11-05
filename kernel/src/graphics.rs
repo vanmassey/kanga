@@ -290,12 +290,17 @@ impl Console {
         let x = self.column * CELL_WIDTH;
         let y = self.row * CELL_HEIGHT;
         // SAFETY: The cell is within the computed grid. Glyph drawing clips.
+        let glyph_character = character.to_ascii_uppercase() as u8;
+        let glyph_text = [glyph_character];
+        // SAFETY: ASCII input is always valid UTF-8.
+        let glyph_text = unsafe { core::str::from_utf8_unchecked(&glyph_text) };
+        // SAFETY: The cell is within the computed grid. Glyph drawing clips.
         unsafe {
             self.surface.rect(x, y, CELL_WIDTH, CELL_HEIGHT, BACKGROUND);
             self.surface.text(
                 x + 1,
                 y + 1,
-                &character.to_ascii_uppercase().to_string(),
+                glyph_text,
                 CONSOLE_SCALE,
                 WHITE,
             );
