@@ -16,6 +16,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential xorriso qemu-system-x86
+      - name: Check shell scripts
+        run: sh -n scripts/build-iso.sh scripts/check.sh scripts/run-qemu.sh
       - name: Check formatting
         run: cargo fmt --all -- --check
       - name: Build bootable image
@@ -40,3 +42,12 @@ jobs:
           grep -F "Allocated frame virtual address:" build/serial.log
           grep -F "Frame memory test: passed" build/serial.log
           grep -F "Display: Kanga graphical boot screen ready" build/serial.log
+      - name: Upload bootable ISO and serial log
+        uses: actions/upload-artifact@v4
+        with:
+          name: kanga-iso-and-boot-log
+          path: |
+            build/kanga.iso
+            build/serial.log
+          if-no-files-found: error
+          retention-days: 7
