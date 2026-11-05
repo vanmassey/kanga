@@ -133,7 +133,12 @@ fn execute(command_line: &[u8], console: Option<&mut Console>) {
     } else if command.eq_ignore_ascii_case(b"time") {
         let ticks = crate::pit::ticks();
         let tenths = crate::pit::elapsed_tenths();
-        let _ = writeln!(output, "System uptime: {}.{:01} seconds", tenths / 10, tenths % 10);
+        let _ = writeln!(
+            output,
+            "System uptime: {}.{:01} seconds",
+            tenths / 10,
+            tenths % 10
+        );
         let _ = writeln!(output, "PIT timer ticks: {ticks} (100 Hz)");
     } else if command.eq_ignore_ascii_case(b"mem") {
         let _ = writeln!(output, "Physical frame allocation: initial 4 KiB allocator");
