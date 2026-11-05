@@ -16,10 +16,10 @@ Kanga currently:
 - allocates a page-aligned 4 KiB physical frame from usable memory;
 - requests the higher-half direct map and converts the frame address; and
 - clears the allocated frame and verifies memory access with a write/read test;
-- requests a Limine RGB framebuffer, draws a graphical boot splash, then switches to a scrolling framebuffer text console; and
+- requests a Limine RGB framebuffer and presents a black-and-white DOS-style scrolling text console; and
 - accepts interrupt-driven PS/2 keyboard input through IRQ1 in a small interactive shell, with shell output mirrored to the serial console.
 
-The framebuffer renderer currently supports 32-bit RGB modes and uses a small built-in bitmap font. Its text console supports ASCII output, wrapping, backspace, clearing and scrolling. The shell supports `help`, `clear`, `info`, `version`, `mem` and `halt`. The kernel now installs a 256-entry IDT with gates for CPU exceptions 0–31 and fatal handlers that report an exception (and error code where applicable) over serial before halting. The 8259 PIC is remapped to vectors 0x20–0x2F, with only keyboard IRQ1 unmasked. The IRQ handler copies scancodes into a fixed-size lock-free queue; translation and shell processing happen outside interrupt context. Other IRQs remain masked; APIC support, timer interrupts, terminal escape sequences and a desktop are not implemented. The physical frame allocator is an initial monotonic allocator. It reserves the first MiB of physical address space and does not yet support freeing or reclaiming frames. See docs/memory.md for the current design and limitations.
+The framebuffer renderer currently supports 32-bit RGB modes and uses a compact fixed-width bitmap font in 8x16 text cells. The console uses a black background, white text and a simple underline cursor; it supports ASCII output, wrapping, backspace, clearing and scrolling. The shell supports `help`, `clear`, `info`, `version`, `mem` and `halt`. The kernel now installs a 256-entry IDT with gates for CPU exceptions 0–31 and fatal handlers that report an exception (and error code where applicable) over serial before halting. The 8259 PIC is remapped to vectors 0x20–0x2F, with only keyboard IRQ1 unmasked. The IRQ handler copies scancodes into a fixed-size lock-free queue; translation and shell processing happen outside interrupt context. Other IRQs remain masked; APIC support, timer interrupts, terminal escape sequences and a desktop are not implemented. The physical frame allocator is an initial monotonic allocator. It reserves the first MiB of physical address space and does not yet support freeing or reclaiming frames. See docs/memory.md for the current design and limitations.
 
 ## Build requirements
 
@@ -51,7 +51,7 @@ Run it in QEMU:
 make run
 ~~~
 
-This opens a graphical QEMU window. Kanga displays its boot splash and then an interactive text console; serial diagnostics and shell output remain connected to the terminal.
+This opens a QEMU window showing Kanga's monochrome DOS-style text console. Serial diagnostics and shell output remain connected to the terminal.
 
 The ISO build downloads a pinned Limine 12.9.6 binary release and verifies its SHA-256 checksum before use.
 
