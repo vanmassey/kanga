@@ -25,16 +25,17 @@ static REQUESTS_END_MARKER: RequestsEndMarker = RequestsEndMarker::new();
 
 #[no_mangle]
 pub extern "C" fn kanga_entry() -> ! {
+    serial::init();
+    let _ = writeln!(serial::Writer, "Kanga kernel entry reached");
+
     if !BASE_REVISION.is_supported() {
+        let _ = writeln!(serial::Writer, "ERROR: Limine base revision is not supported");
         stop();
     }
 
-    serial::init();
-    let _ = writeln!(serial::Writer, "");
     let _ = writeln!(serial::Writer, "Kanga kernel {}", env!("CARGO_PKG_VERSION"));
     let _ = writeln!(serial::Writer, "Architecture: x86_64");
     let _ = writeln!(serial::Writer, "Boot protocol: Limine");
-    let _ = writeln!(serial::Writer, "Kernel entry reached successfully");
 
     report_memory_map();
     let _ = writeln!(serial::Writer, "Initialisation complete; kernel idle");
