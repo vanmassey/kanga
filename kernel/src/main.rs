@@ -29,7 +29,10 @@ pub extern "C" fn kanga_entry() -> ! {
     let _ = writeln!(serial::Writer, "Kanga kernel entry reached");
 
     if !BASE_REVISION.is_supported() {
-        let _ = writeln!(serial::Writer, "ERROR: Limine base revision is not supported");
+        let _ = writeln!(
+            serial::Writer,
+            "ERROR: Limine base revision is not supported"
+        );
         stop();
     }
 
