@@ -58,10 +58,17 @@ impl FileSystem {
             return Err(Error::FileTooLarge);
         }
 
-        let existing = self.files.iter().position(|file| file.used && file.name() == name);
+        let existing = self
+            .files
+            .iter()
+            .position(|file| file.used && file.name() == name);
         let slot = match existing {
             Some(index) => index,
-            None => self.files.iter().position(|file| !file.used).ok_or(Error::DirectoryFull)?,
+            None => self
+                .files
+                .iter()
+                .position(|file| !file.used)
+                .ok_or(Error::DirectoryFull)?,
         };
 
         let file = &mut self.files[slot];
@@ -87,7 +94,11 @@ impl FileSystem {
         let Ok(name) = validate_name(name) else {
             return false;
         };
-        if let Some(file) = self.files.iter_mut().find(|file| file.used && file.name() == name) {
+        if let Some(file) = self
+            .files
+            .iter_mut()
+            .find(|file| file.used && file.name() == name)
+        {
             *file = File::EMPTY;
             true
         } else {
@@ -124,7 +135,10 @@ fn validate_name(name: &[u8]) -> Result<&str, Error> {
     if name.len() > NAME_CAPACITY {
         return Err(Error::NameTooLong);
     }
-    if !name.iter().all(|byte| byte.is_ascii_alphanumeric() || matches!(*byte, b'.' | b'_' | b'-')) {
+    if !name
+        .iter()
+        .all(|byte| byte.is_ascii_alphanumeric() || matches!(*byte, b'.' | b'_' | b'-'))
+    {
         return Err(Error::InvalidName);
     }
     core::str::from_utf8(name).map_err(|_| Error::InvalidName)
@@ -149,7 +163,10 @@ mod tests {
     fn rejects_invalid_names_and_oversized_files() {
         let mut fs = FileSystem::new();
         assert_eq!(fs.write(b"bad name", b"x"), Err(Error::InvalidName));
-        assert_eq!(fs.write(b"large.bin", &[0; FILE_CAPACITY + 1]), Err(Error::FileTooLarge));
+        assert_eq!(
+            fs.write(b"large.bin", &[0; FILE_CAPACITY + 1]),
+            Err(Error::FileTooLarge)
+        );
     }
 
     #[test]
