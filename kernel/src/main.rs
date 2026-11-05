@@ -56,15 +56,15 @@ pub extern "C" fn kanga_entry() -> ! {
     let _ = writeln!(serial::Writer, "Boot protocol: Limine");
 
     report_memory_map();
-    initialise_graphics();
+    let console = initialise_graphics();
     let _ = writeln!(
         serial::Writer,
         "Initialisation complete; entering interactive shell"
     );
-    shell::run()
+    shell::run(console)
 }
 
-fn initialise_graphics() {
+fn initialise_graphics() -> Option<graphics::Console> {
     // SAFETY: Limine's framebuffer response remains valid while boot mappings
     // are retained, which Kanga does throughout this boot-time initialisation.
     let response = unsafe { FRAMEBUFFER_REQUEST.get_response() };
@@ -96,6 +96,15 @@ fn initialise_graphics() {
             "Display: unsupported framebuffer format or dimensions"
         );
     }
+
+    // SAFETY: Limine's framebuffer mapping remains active for the kernel run.
+    let console = unsafe { graphics::Console::new(&framebuffer) };
+    if console.is_some() {
+        let _ = writeln!(serial::Writer, "Display: framebuffer text console ready");
+    } else {
+        let _ = writeln!(serial::Writer, "Display: text console unavailable");
+    }
+    console
 }
 
 fn report_memory_map() {
