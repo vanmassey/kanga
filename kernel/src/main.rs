@@ -94,6 +94,11 @@ fn report_memory_map() {
                             "Allocated frame virtual address: 0x{:016x}",
                             virtual_address
                         );
+
+                        // SAFETY: The allocator has just handed out this usable frame.
+                        let accessible = unsafe { memory::zero_and_verify_frame(virtual_address) };
+                        let status = if accessible { "passed" } else { "FAILED" };
+                        let _ = writeln!(serial::Writer, "Frame memory test: {status}");
                     }
                     None => {
                         let _ = writeln!(serial::Writer, "HHDM address conversion overflowed");
