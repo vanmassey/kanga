@@ -59,6 +59,7 @@ jobs:
             sleep 0.1
           done
           grep -F "Kanga> " build/serial.log
+          sleep 1
 
           for key in d i r ret v e r ret e c h o spc h e l l o spc k a n g a ret t i m e ret d a t e ret u p t i m e ret b e e p ret; do
             printf 'sendkey %s 80\\n' "$key" | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
@@ -72,11 +73,6 @@ jobs:
           done
           sleep 0.5
           printf 'screendump build/kanga-screen.ppm\n' | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
-          sleep 0.2
-          for key in c l s ret; do
-            printf 'sendkey %s 80\n' "$key" | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
-            sleep 0.15
-          done
           sleep 0.2
           cat build/serial.log
           grep -F "Kanga kernel entry reached" build/serial.log
