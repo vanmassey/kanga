@@ -61,7 +61,7 @@ jobs:
           grep -F "Kanga> " build/serial.log
           sleep 1
 
-          for key in d i r ret v e r ret e c h o spc h e l l o spc k a n g a ret t i m e ret d a t e ret u p t i m e ret b e e p ret; do
+          for key in d i r ret v e r ret e c h o spc h e l l o spc k a n g a ret t i m e ret d a t e ret u p t i m e ret w r i t e spc n o t e . t x t spc h e l l o spc f r o m spc k a n g a ret t y p e spc n o t e . t x t ret d i r ret d e l spc n o t e . t x t ret d i r ret f s i n f o ret; do
             printf 'sendkey %s 80\n' "$key" | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
             sleep 0.15
           done
@@ -90,7 +90,13 @@ jobs:
           grep -F "Starting command shell..... [ OK ]" build/serial.log
           grep -F "Type HELP for a list of commands." build/serial.log
           grep -F "Kanga OS [Version 0.1.0]" build/serial.log
-          grep -F "No filesystem is mounted." build/serial.log
+          grep -F "KangaFS RAM filesystem..... [ OK ]" build/serial.log
+          grep -F "Saved note.txt (16 bytes)." build/serial.log
+          grep -F "Hello from Kanga" build/serial.log
+          grep -F "Deleted note.txt." build/serial.log
+          grep -F "Filesystem: KangaFS" build/serial.log
+          grep -F "Storage: volatile kernel RAM" build/serial.log
+          ! grep -F "PC speaker" build/serial.log
           test -s build/kanga-screen.ppm
           python3 scripts/check-framebuffer.py build/kanga-screen.ppm
       - name: Upload QEMU screenshot, bootable ISO and serial log
