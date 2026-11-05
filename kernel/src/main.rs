@@ -57,7 +57,10 @@ pub extern "C" fn kanga_entry() -> ! {
 
     report_memory_map();
     initialise_graphics();
-    let _ = writeln!(serial::Writer, "Initialisation complete; entering interactive shell");
+    let _ = writeln!(
+        serial::Writer,
+        "Initialisation complete; entering interactive shell"
+    );
     shell::run()
 }
 
