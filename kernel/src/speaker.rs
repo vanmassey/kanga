@@ -17,17 +17,13 @@ pub fn beep() {
         outb(PIT_CHANNEL_2, DIVISOR as u8);
         outb(PIT_CHANNEL_2, (DIVISOR >> 8) as u8);
         let control = inb(SPEAKER_CONTROL);
-        if control & 0x03 != 0x03 {
-            outb(SPEAKER_CONTROL, control | 0x03);
-        }
+        outb(SPEAKER_CONTROL, control | 0x03);
     }
 
-    // Wait for 25 IRQ0 ticks (approximately 250 ms). Interrupts remain enabled.
+    // Wait for 25 IRQ0 ticks (approximately 250 ms). Keep the foreground
+    // active while IRQ0 advances the atomic counter; do not HLT inside a driver.
     while crate::pit::ticks().wrapping_sub(start) < 25 {
-        // SAFETY: IRQ0 wakes the processor and advances the monotonic tick count.
-        unsafe {
-            asm!("hlt", options(nomem, nostack));
-        }
+        core::hint::spin_loop();
     }
 
     // SAFETY: Disable the speaker gate without changing unrelated port bits.
@@ -38,6 +34,7 @@ pub fn beep() {
 }
 
 unsafe fn outb(port: u16, value: u8) {
+    // SAFETY: Caller selects a standard legacy I/O port.
     unsafe {
         asm!(
             "out dx, al",
@@ -50,6 +47,7 @@ unsafe fn outb(port: u16, value: u8) {
 
 unsafe fn inb(port: u16) -> u8 {
     let value: u8;
+    // SAFETY: Caller selects a standard legacy I/O port.
     unsafe {
         asm!(
             "in al, dx",
