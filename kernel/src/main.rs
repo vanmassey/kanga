@@ -4,7 +4,9 @@
 use core::fmt::Write;
 use core::panic::PanicInfo;
 use limine::memory_map::EntryType;
-use limine::request::{MemoryMapRequest, RequestsEndMarker, RequestsStartMarker};
+use limine::request::{
+    HhdmRequest, MemoryMapRequest, RequestsEndMarker, RequestsStartMarker,
+};
 use limine::BaseRevision;
 
 mod memory;
@@ -20,6 +22,10 @@ static BASE_REVISION: BaseRevision = BaseRevision::new();
 #[used]
 #[link_section = ".limine_requests"]
 static MEMORY_MAP_REQUEST: MemoryMapRequest = MemoryMapRequest::new();
+
+#[used]
+#[link_section = ".limine_requests"]
+static HHDM_REQUEST: HhdmRequest = HhdmRequest::new();
 
 #[used]
 #[link_section = ".limine_requests_end"]
@@ -80,6 +86,29 @@ fn report_memory_map() {
                 "Physical frame allocator: allocated frame at 0x{:016x}",
                 frame
             );
+
+            match HHDM_REQUEST.get_response() {
+                Some(hhdm) => match memory::physical_to_virtual(frame, hhdm.offset()) {
+                    Some(virtual_address) => {
+                        let _ = writeln!(
+                            serial::Writer,
+                            "HHDM offset: 0x{:016x}",
+                            hhdm.offset()
+                        );
+                        let _ = writeln!(
+                            serial::Writer,
+                            "Allocated frame virtual address: 0x{:016x}",
+                            virtual_address
+                        );
+                    }
+                    None => {
+                        let _ = writeln!(serial::Writer, "HHDM address conversion overflowed");
+                    }
+                },
+                None => {
+                    let _ = writeln!(serial::Writer, "HHDM: no response from bootloader");
+                }
+            }
         }
         None => {
             let _ = writeln!(serial::Writer, "Physical frame allocator: no usable frames");
