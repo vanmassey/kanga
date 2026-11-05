@@ -68,11 +68,7 @@ fn initialise_graphics() {
         return;
     };
 
-    // SAFETY: Limine supplies a valid framebuffer pointer array in its response.
-    let Some(framebuffers) = (unsafe { response.get_framebuffers() }) else {
-        let _ = writeln!(serial::Writer, "Framebuffer: response contained no devices");
-        return;
-    };
+    let framebuffers = response.framebuffers();
     let Some(framebuffer) = framebuffers.first() else {
         let _ = writeln!(serial::Writer, "Framebuffer: no display devices available");
         return;
