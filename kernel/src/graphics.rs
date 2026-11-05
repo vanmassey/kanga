@@ -274,7 +274,7 @@ impl Console {
         let x = self.column * CELL_WIDTH;
         let y = self.row * CELL_HEIGHT + CELL_HEIGHT - 2;
         // SAFETY: Cursor coordinates are within the console cell.
-        unsafe { self.surface.rect(x, y + CELL_HEIGHT - 2, 7, 1, WHITE) };
+        unsafe { self.surface.rect(x, y, 7, 1, WHITE) };
     }
 }
 
