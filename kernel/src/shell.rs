@@ -1,19 +1,32 @@
-//! Minimal interactive kernel shell, initially backed by polled PS/2 input.
+//! Interactive kernel shell with serial and framebuffer output.
 
-use core::fmt::Write;
+use core::fmt::{self, Write};
 
+use crate::graphics::Console;
 use crate::keyboard::{self, Key};
 
 const LINE_CAPACITY: usize = 80;
 
-pub fn run() -> ! {
-    let _ = writeln!(crate::serial::Writer, "\nKanga interactive shell");
-    let _ = writeln!(crate::serial::Writer, "Input: PS/2 keyboard (polling)");
-    let _ = writeln!(
-        crate::serial::Writer,
-        "Type 'help' for available commands.\n"
-    );
-    prompt();
+struct Output<'a>(Option<&'a mut Console>);
+
+impl Write for Output<'_> {
+    fn write_str(&mut self, text: &str) -> fmt::Result {
+        let _ = crate::serial::Writer.write_str(text);
+        if let Some(console) = self.0.as_deref_mut() {
+            console.write_str(text)?;
+        }
+        Ok(())
+    }
+}
+
+pub fn run(mut console: Option<Console>) -> ! {
+    {
+        let mut output = Output(console.as_mut());
+        let _ = writeln!(output, "\nKanga interactive shell");
+        let _ = writeln!(output, "Input: PS/2 keyboard (polling)");
+        let _ = writeln!(output, "Type 'help' for available commands.\n");
+        let _ = write!(output, "kanga> ");
+    }
 
     let mut line = [0_u8; LINE_CAPACITY];
     let mut length = 0_usize;
@@ -24,20 +37,25 @@ pub fn run() -> ! {
                 Key::Character(character) if length < LINE_CAPACITY => {
                     line[length] = character;
                     length += 1;
-                    let mut writer = crate::serial::Writer;
-                    let _ = writer.write_char(character as char);
+                    let mut output = Output(console.as_mut());
+                    let _ = output.write_char(character as char);
                 }
                 Key::Character(_) => {}
                 Key::Backspace if length > 0 => {
                     length -= 1;
-                    let _ = write!(crate::serial::Writer, "\x08 \x08");
+                    let mut output = Output(console.as_mut());
+                    let _ = output.write_str("\x08 \x08");
                 }
                 Key::Backspace => {}
                 Key::Enter => {
-                    let _ = writeln!(crate::serial::Writer, "");
-                    execute(&line[..length]);
+                    {
+                        let mut output = Output(console.as_mut());
+                        let _ = writeln!(output);
+                    }
+                    execute(&line[..length], console.as_mut());
                     length = 0;
-                    prompt();
+                    let mut output = Output(console.as_mut());
+                    let _ = write!(output, "kanga> ");
                 }
             }
         } else {
@@ -46,68 +64,47 @@ pub fn run() -> ! {
     }
 }
 
-fn prompt() {
-    let _ = write!(crate::serial::Writer, "kanga> ");
-}
-
-fn execute(command: &[u8]) {
+fn execute(command: &[u8], console: Option<&mut Console>) {
     let command = trim(command);
+    let mut output = Output(console);
     match command {
         b"" => {}
         b"help" => {
-            let _ = writeln!(crate::serial::Writer, "help     - show this command list");
-            let _ = writeln!(
-                crate::serial::Writer,
-                "clear    - print a fresh terminal page"
-            );
-            let _ = writeln!(
-                crate::serial::Writer,
-                "info     - show kernel and platform details"
-            );
-            let _ = writeln!(crate::serial::Writer, "version  - show the Kanga version");
-            let _ = writeln!(
-                crate::serial::Writer,
-                "mem      - explain current memory support"
-            );
-            let _ = writeln!(crate::serial::Writer, "halt     - halt the processor");
+            let _ = writeln!(output, "help     - show this command list");
+            let _ = writeln!(output, "clear    - clear the screen");
+            let _ = writeln!(output, "info     - show kernel and platform details");
+            let _ = writeln!(output, "version  - show the Kanga version");
+            let _ = writeln!(output, "mem      - explain current memory support");
+            let _ = writeln!(output, "halt     - halt the processor");
         }
         b"clear" => {
-            // ANSI clear-screen is useful in serial terminals; graphical
-            // terminal rendering will replace this once a text console exists.
-            let _ = write!(crate::serial::Writer, "\x1b[2J\x1b[H");
+            if let Some(console) = output.0.as_deref_mut() {
+                console.clear();
+            }
         }
         b"info" => {
             let _ = writeln!(
-                crate::serial::Writer,
+                output,
                 "Kanga {} / x86_64",
                 env!("CARGO_PKG_VERSION")
             );
-            let _ = writeln!(crate::serial::Writer, "Bootloader: Limine");
-            let _ = writeln!(crate::serial::Writer, "Kernel mode: freestanding, no_std");
-            let _ = writeln!(
-                crate::serial::Writer,
-                "Input: legacy PS/2 keyboard, polling"
-            );
+            let _ = writeln!(output, "Bootloader: Limine");
+            let _ = writeln!(output, "Kernel mode: freestanding, no_std");
+            let _ = writeln!(output, "Input: legacy PS/2 keyboard, polling");
+            let _ = writeln!(output, "Display: framebuffer text console");
         }
         b"version" => {
-            let _ = writeln!(
-                crate::serial::Writer,
-                "Kanga OS {}",
-                env!("CARGO_PKG_VERSION")
-            );
+            let _ = writeln!(output, "Kanga OS {}", env!("CARGO_PKG_VERSION"));
         }
         b"mem" => {
+            let _ = writeln!(output, "Physical frame allocation: initial 4 KiB allocator");
             let _ = writeln!(
-                crate::serial::Writer,
-                "Physical frame allocation: initial 4 KiB allocator"
-            );
-            let _ = writeln!(
-                crate::serial::Writer,
+                output,
                 "Frame reclamation, virtual memory and heap: not implemented"
             );
         }
         b"halt" => {
-            let _ = writeln!(crate::serial::Writer, "Halting Kanga.");
+            let _ = writeln!(output, "Halting Kanga.");
             loop {
                 // SAFETY: The user explicitly requested a processor halt.
                 unsafe {
@@ -116,7 +113,7 @@ fn execute(command: &[u8]) {
             }
         }
         _ => {
-            let _ = writeln!(crate::serial::Writer, "Unknown command. Type 'help'.");
+            let _ = writeln!(output, "Unknown command. Type 'help'.");
         }
     }
 }
