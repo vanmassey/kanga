@@ -84,6 +84,33 @@ fn glyph(character: char) -> [u8; 7] {
         'X' => [17, 17, 10, 4, 10, 17, 17],
         'Y' => [17, 17, 10, 4, 4, 4, 4],
         'Z' => [31, 1, 2, 4, 8, 16, 31],
+
+        'a' => [0, 0, 14, 1, 15, 17, 15],
+        'b' => [16, 16, 30, 17, 17, 17, 30],
+        'c' => [0, 0, 14, 17, 16, 17, 14],
+        'd' => [1, 1, 15, 17, 17, 17, 15],
+        'e' => [0, 0, 14, 17, 31, 16, 14],
+        'f' => [6, 9, 8, 28, 8, 8, 8],
+        'g' => [0, 0, 15, 17, 15, 1, 14],
+        'h' => [16, 16, 30, 17, 17, 17, 17],
+        'i' => [4, 0, 12, 4, 4, 4, 14],
+        'j' => [2, 0, 6, 2, 2, 18, 12],
+        'k' => [16, 16, 18, 20, 24, 20, 18],
+        'l' => [12, 4, 4, 4, 4, 4, 14],
+        'm' => [0, 0, 26, 21, 21, 21, 21],
+        'n' => [0, 0, 30, 17, 17, 17, 17],
+        'o' => [0, 0, 14, 17, 17, 17, 14],
+        'p' => [0, 0, 30, 17, 30, 16, 16],
+        'q' => [0, 0, 15, 17, 15, 1, 1],
+        'r' => [0, 0, 22, 25, 16, 16, 16],
+        's' => [0, 0, 15, 16, 14, 1, 30],
+        't' => [8, 8, 28, 8, 8, 9, 6],
+        'u' => [0, 0, 17, 17, 17, 19, 13],
+        'v' => [0, 0, 17, 17, 17, 10, 4],
+        'w' => [0, 0, 17, 17, 21, 21, 10],
+        'x' => [0, 0, 17, 10, 4, 10, 17],
+        'y' => [0, 0, 17, 17, 15, 1, 14],
+        'z' => [0, 0, 31, 2, 4, 8, 31],
         '0' => [14, 17, 19, 21, 25, 17, 14],
         '1' => [4, 12, 4, 4, 4, 4, 14],
         '2' => [14, 17, 1, 2, 4, 8, 31],
@@ -201,9 +228,9 @@ impl Console {
         }
         let x = self.column * CELL_WIDTH;
         let y = self.row * CELL_HEIGHT;
-        let rows = glyph(character.to_ascii_uppercase());
-        // Render a compact 5x7 bitmap in a classic 8x16 text cell. Each
-        // glyph scanline is doubled vertically, with one-pixel side bearings.
+        let rows = glyph(character);
+        // Render a 5x7 bitmap in a classic 8x16 text cell. Lowercase letters
+        // use their own glyphs, giving the console a mixed-case text face.
         // SAFETY: The cell is inside the validated console grid.
         unsafe {
             self.surface.rect(x, y, CELL_WIDTH, CELL_HEIGHT, BACKGROUND);
