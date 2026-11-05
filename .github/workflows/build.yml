@@ -55,10 +55,10 @@ jobs:
             sleep 0.15
           done
           sleep 0.5
-          printf 'screendump build/kanga-screen.ppm\\n' | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
+          printf 'screendump build/kanga-screen.ppm\n' | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
           sleep 0.2
           for key in c l s ret; do
-            printf 'sendkey %s 80\\n' \"$key\" | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
+            printf 'sendkey %s 80\n' "$key" | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
             sleep 0.15
           done
           sleep 0.2
