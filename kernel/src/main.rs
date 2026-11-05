@@ -68,8 +68,8 @@ fn initialise_graphics() {
         return;
     };
 
-    let framebuffers = response.framebuffers();
-    let Some(framebuffer) = framebuffers.first() else {
+    let mut framebuffers = response.framebuffers();
+    let Some(framebuffer) = framebuffers.next() else {
         let _ = writeln!(serial::Writer, "Framebuffer: no display devices available");
         return;
     };
@@ -83,7 +83,7 @@ fn initialise_graphics() {
     );
 
     // SAFETY: The framebuffer is provided by Limine and remains mapped.
-    if unsafe { graphics::draw_boot_screen(framebuffer) } {
+    if unsafe { graphics::draw_boot_screen(&framebuffer) } {
         let _ = writeln!(serial::Writer, "Display: Kanga graphical boot screen ready");
     } else {
         let _ = writeln!(
