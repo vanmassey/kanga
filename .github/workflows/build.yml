@@ -33,8 +33,19 @@ jobs:
             -display none -no-reboot -no-shutdown &
           qemu_pid=$!
           cleanup() {
+            status=$?
+            # Preserve the first screenshot if the normal test path already
+            # captured it. Otherwise, take a best-effort screenshot before
+            # stopping QEMU so failures still leave diagnostic evidence.
+            if [ ! -s build/kanga-screen.ppm ] && kill -0 "$qemu_pid" 2>/dev/null; then
+              if [ -S build/qemu-monitor.sock ]; then
+                printf 'screendump build/kanga-screen.ppm\\n' |
+                  socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null 2>&1 || true
+              fi
+            fi
             kill "$qemu_pid" 2>/dev/null || true
             wait "$qemu_pid" 2>/dev/null || true
+            return "$status"
           }
           trap cleanup EXIT
 
@@ -62,8 +73,6 @@ jobs:
             sleep 0.15
           done
           sleep 0.2
-          cleanup
-          trap - EXIT
           cat build/serial.log
           grep -F "Kanga kernel entry reached" build/serial.log
           grep -F "Interrupts: 256-entry IDT installed" build/serial.log
@@ -84,7 +93,8 @@ jobs:
           grep -F "Hello Kanga" build/serial.log
           test -s build/kanga-screen.ppm
           python3 scripts/check-framebuffer.py build/kanga-screen.ppm
-      - name: Upload bootable ISO and serial log
+      - name: Upload QEMU screenshot, bootable ISO and serial log
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: kanga-iso-and-boot-log
@@ -92,5 +102,5 @@ jobs:
             build/kanga.iso
             build/serial.log
             build/kanga-screen.ppm
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 7
