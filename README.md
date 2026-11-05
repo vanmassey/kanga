@@ -12,10 +12,12 @@ Kanga currently:
 - validates the Limine base revision;
 - initialises a COM1 serial console;
 - reports kernel identity and boot progress;
-- reads and summarises the Limine physical memory map; and
-- allocates its first 4 KiB physical frame from usable memory.
+- reads and summarises the Limine physical memory map;
+- allocates a page-aligned 4 KiB physical frame from usable memory;
+- requests the higher-half direct map and converts the frame address; and
+- clears the allocated frame and verifies memory access with a write/read test.
 
-The physical frame allocator is an initial monotonic allocator. It reserves the first MiB of physical address space and does not yet support freeing or reclaiming frames.
+The physical frame allocator is an initial monotonic allocator. It reserves the first MiB of physical address space and does not yet support freeing or reclaiming frames. See docs/memory.md for the current design and limitations.
 
 ## Build requirements
 
@@ -51,7 +53,7 @@ The ISO build downloads a pinned Limine 12.9.6 binary release and verifies its S
 
 ## Automated validation
 
-GitHub Actions checks formatting, builds the ISO, boots it in QEMU and verifies that the kernel entry point and memory-map reporting are visible on the serial console.
+GitHub Actions checks formatting, builds the ISO, boots it in QEMU and verifies that the kernel entry point, memory map, frame allocation, HHDM conversion and frame memory test are visible on the serial console.
 
 ## Project principles
 
