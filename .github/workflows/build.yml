@@ -39,7 +39,7 @@ jobs:
             # stopping QEMU so failures still leave diagnostic evidence.
             if [ ! -s build/kanga-screen.ppm ] && kill -0 "$qemu_pid" 2>/dev/null; then
               if [ -S build/qemu-monitor.sock ]; then
-                printf 'screendump build/kanga-screen.ppm\\n' |
+                printf 'screendump build/kanga-screen.ppm\n' |
                   socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null 2>&1 || true
               fi
             fi
