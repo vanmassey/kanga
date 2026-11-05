@@ -1,5 +1,6 @@
 #![no_std]
 #![no_main]
+#![feature(abi_x86_interrupt)]
 
 use core::fmt::Write;
 use core::panic::PanicInfo;
@@ -10,6 +11,7 @@ use limine::request::{
 use limine::BaseRevision;
 
 mod graphics;
+mod interrupts;
 mod keyboard;
 mod memory;
 mod shell;
@@ -55,6 +57,7 @@ pub extern "C" fn kanga_entry() -> ! {
     let _ = writeln!(serial::Writer, "Architecture: x86_64");
     let _ = writeln!(serial::Writer, "Boot protocol: Limine");
 
+    interrupts::initialise();
     report_memory_map();
     let console = initialise_graphics();
     let _ = writeln!(
