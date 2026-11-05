@@ -39,7 +39,7 @@ jobs:
           trap cleanup EXIT
 
           for attempt in $(seq 1 100); do
-            if grep -Fq "kanga> " build/serial.log 2>/dev/null; then
+            if grep -Fq "Kanga> " build/serial.log 2>/dev/null; then
               break
             fi
             if ! kill -0 "$qemu_pid" 2>/dev/null; then
@@ -48,7 +48,7 @@ jobs:
             fi
             sleep 0.1
           done
-          grep -F "kanga> " build/serial.log
+          grep -F "Kanga> " build/serial.log
 
           for key in v e r s i o n ret; do
             printf 'sendkey %s 80\n' "$key" | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
@@ -67,11 +67,11 @@ jobs:
           grep -F "Physical frame allocator: allocated frame at" build/serial.log
           grep -F "Allocated frame virtual address:" build/serial.log
           grep -F "Frame memory test: passed" build/serial.log
-          grep -F "Display: Kanga graphical boot screen ready" build/serial.log
+          grep -F "Display: classic monochrome text console" build/serial.log
           grep -F "Display: framebuffer text console ready" build/serial.log
-          grep -F "Input: PS/2 keyboard (interrupt-driven IRQ1)" build/serial.log
-          grep -F "Kanga interactive shell" build/serial.log
-          grep -F "Type 'help' for available commands." build/serial.log
+          grep -F "Initialising keyboard..... [ OK ]" build/serial.log
+          grep -F "Starting command shell.... [ OK ]" build/serial.log
+          grep -F "Type HELP for a list of commands." build/serial.log
           grep -F "Kanga OS 0.1.0" build/serial.log
       - name: Upload bootable ISO and serial log
         uses: actions/upload-artifact@v4
