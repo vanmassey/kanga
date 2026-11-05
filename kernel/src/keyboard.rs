@@ -66,7 +66,7 @@ pub fn poll_key() -> Option<Key> {
         0x1A => shifted_char(shifted, b'{', b'['),
         0x1B => shifted_char(shifted, b'}', b']'),
         0x27 => shifted_char(shifted, b':', b';'),
-        0x28 => shifted_char(shifted, b'\"', b'\\''),
+        0x28 => shifted_char(shifted, b'"', b'\''),
         0x29 => shifted_char(shifted, b'~', b'`'),
         0x2B => shifted_char(shifted, b'|', b'\\'),
         0x33 => shifted_char(shifted, b'<', b','),
