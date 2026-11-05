@@ -55,26 +55,34 @@ pub fn poll_key() -> Option<Key> {
             const NORMAL: &[u8] = b"1234567890";
             const UPPER: &[u8] = b"!@#$%^&*()";
             let index = (scancode - 0x02) as usize;
-            if shifted { UPPER[index] } else { NORMAL[index] }
+            shifted_char(shifted, UPPER[index], NORMAL[index])
         }
         0x10..=0x19 => letter_or_symbol(scancode, shifted, caps, b"qwertyuiop", b"QWERTYUIOP"),
         0x1E..=0x26 => letter_or_symbol(scancode, shifted, caps, b"asdfghjkl", b"ASDFGHJKL"),
         0x2C..=0x32 => letter_or_symbol(scancode, shifted, caps, b"zxcvbnm", b"ZXCVBNM"),
         0x39 => b' ',
-        0x0C => if shifted { b'_' } else { b'-' },
-        0x0D => if shifted { b'+' } else { b'=' },
-        0x1A => if shifted { b'{' } else { b'[' },
-        0x1B => if shifted { b'}' } else { b']' },
-        0x27 => if shifted { b':' } else { b';' },
+        0x0C => shifted_char(shifted, b'_', b'-'),
+        0x0D => shifted_char(shifted, b'+', b'='),
+        0x1A => shifted_char(shifted, b'{', b'['),
+        0x1B => shifted_char(shifted, b'}', b']'),
+        0x27 => shifted_char(shifted, b':', b';'),
         0x28 => if shifted { b'"' } else { b'\'' },
-        0x29 => if shifted { b'~' } else { b'`' },
-        0x2B => if shifted { b'|' } else { b'\\' },
-        0x33 => if shifted { b'<' } else { b',' },
-        0x34 => if shifted { b'>' } else { b'.' },
-        0x35 => if shifted { b'?' } else { b'/' },
+        0x29 => shifted_char(shifted, b'~', b'`'),
+        0x2B => shifted_char(shifted, b'|', b'\\'),
+        0x33 => shifted_char(shifted, b'<', b','),
+        0x34 => shifted_char(shifted, b'>', b'.'),
+        0x35 => shifted_char(shifted, b'?', b'/'),
         _ => return None,
     };
     Some(Key::Character(character))
+}
+
+fn shifted_char(shifted: bool, shifted_value: u8, normal_value: u8) -> u8 {
+    if shifted {
+        shifted_value
+    } else {
+        normal_value
+    }
 }
 
 fn letter_or_symbol(code: u8, shifted: bool, caps: bool, normal: &[u8], upper: &[u8]) -> u8 {
