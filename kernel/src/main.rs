@@ -70,7 +70,7 @@ fn initialise_graphics() -> Option<graphics::Console> {
     let response = unsafe { FRAMEBUFFER_REQUEST.get_response() };
     let Some(response) = response else {
         let _ = writeln!(serial::Writer, "Framebuffer: no response from bootloader");
-        return;
+        return None;
     };
 
     let mut framebuffers = response.framebuffers();
