@@ -23,7 +23,7 @@ pub fn run(mut console: Option<Console>) -> ! {
     {
         let mut output = Output(console.as_mut());
         let _ = writeln!(output, "\nKanga interactive shell");
-        let _ = writeln!(output, "Input: PS/2 keyboard (polling)");
+        let _ = writeln!(output, "Input: PS/2 keyboard (interrupt-driven IRQ1)");
         let _ = writeln!(output, "Type 'help' for available commands.\n");
         let _ = write!(output, "kanga> ");
     }
@@ -86,7 +86,7 @@ fn execute(command: &[u8], console: Option<&mut Console>) {
             let _ = writeln!(output, "Kanga {} / x86_64", env!("CARGO_PKG_VERSION"));
             let _ = writeln!(output, "Bootloader: Limine");
             let _ = writeln!(output, "Kernel mode: freestanding, no_std");
-            let _ = writeln!(output, "Input: legacy PS/2 keyboard, polling");
+            let _ = writeln!(output, "Input: legacy PS/2 keyboard, interrupt-driven IRQ1");
             let _ = writeln!(output, "Display: framebuffer text console");
         }
         b"version" => {
