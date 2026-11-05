@@ -4,9 +4,7 @@
 use core::fmt::Write;
 use core::panic::PanicInfo;
 use limine::memory_map::EntryType;
-use limine::request::{
-    HhdmRequest, MemoryMapRequest, RequestsEndMarker, RequestsStartMarker,
-};
+use limine::request::{HhdmRequest, MemoryMapRequest, RequestsEndMarker, RequestsStartMarker};
 use limine::BaseRevision;
 
 mod memory;
@@ -90,11 +88,7 @@ fn report_memory_map() {
             match HHDM_REQUEST.get_response() {
                 Some(hhdm) => match memory::physical_to_virtual(frame, hhdm.offset()) {
                     Some(virtual_address) => {
-                        let _ = writeln!(
-                            serial::Writer,
-                            "HHDM offset: 0x{:016x}",
-                            hhdm.offset()
-                        );
+                        let _ = writeln!(serial::Writer, "HHDM offset: 0x{:016x}", hhdm.offset());
                         let _ = writeln!(
                             serial::Writer,
                             "Allocated frame virtual address: 0x{:016x}",
