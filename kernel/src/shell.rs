@@ -101,6 +101,7 @@ fn execute(command_line: &[u8], console: Option<&mut Console>) {
         let _ = writeln!(output, "INFO      show kernel and platform details");
         let _ = writeln!(output, "MEM       show memory support status");
         let _ = writeln!(output, "TIME      show system uptime and timer ticks");
+        let _ = writeln!(output, "DATE      show the CMOS real-time clock");
         let _ = writeln!(output, "HELP      display this help");
         let _ = writeln!(output, "HALT      stop the processor");
     } else if command.eq_ignore_ascii_case(b"dir") {
@@ -140,6 +141,19 @@ fn execute(command_line: &[u8], console: Option<&mut Console>) {
             tenths % 10
         );
         let _ = writeln!(output, "PIT timer ticks: {ticks} (100 Hz)");
+    } else if command.eq_ignore_ascii_case(b"date") {
+        match crate::rtc::read() {
+            Some(time) => {
+                let _ = writeln!(
+                    output,
+                    "RTC date/time: {:04}-{:02}-{:02} {:02}:{:02}:{:02}",
+                    time.year, time.month, time.day, time.hour, time.minute, time.second
+                );
+            }
+            None => {
+                let _ = writeln!(output, "RTC unavailable or returned an invalid date/time.");
+            }
+        }
     } else if command.eq_ignore_ascii_case(b"mem") {
         let _ = writeln!(output, "Physical frame allocation: initial 4 KiB allocator");
         let _ = writeln!(
