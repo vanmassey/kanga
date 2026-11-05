@@ -26,7 +26,12 @@ impl<'a> FrameAllocator<'a> {
     /// Allocate one 4 KiB physical frame, returning its physical address.
     pub fn allocate_frame(&mut self) -> Option<u64> {
         loop {
-            if self.next_frame <= self.region_end.saturating_sub(PAGE_SIZE) {
+            if self.region_end != 0
+                && self
+                    .next_frame
+                    .checked_add(PAGE_SIZE)
+                    .is_some_and(|end| end <= self.region_end)
+            {
                 let frame = self.next_frame;
                 self.next_frame = self.next_frame.checked_add(PAGE_SIZE)?;
                 return Some(frame);
@@ -40,8 +45,12 @@ impl<'a> FrameAllocator<'a> {
             }
 
             let end = entry.base.checked_add(entry.length)?;
-            let aligned_start = entry.base.checked_add(PAGE_SIZE - 1)? & !(PAGE_SIZE - 1);
-            if aligned_start > end.saturating_sub(PAGE_SIZE) {
+            let region_start = entry.base.max(PAGE_SIZE);
+            let aligned_start = region_start.checked_add(PAGE_SIZE - 1)? & !(PAGE_SIZE - 1);
+            let Some(first_frame_end) = aligned_start.checked_add(PAGE_SIZE) else {
+                continue;
+            };
+            if first_frame_end > end {
                 continue;
             }
 
