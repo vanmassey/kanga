@@ -39,3 +39,4 @@ jobs:
           grep -F "Physical frame allocator: allocated frame at" build/serial.log
           grep -F "Allocated frame virtual address:" build/serial.log
           grep -F "Frame memory test: passed" build/serial.log
+          grep -F "Display: Kanga graphical boot screen ready" build/serial.log
