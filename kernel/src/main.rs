@@ -14,6 +14,7 @@ mod graphics;
 mod interrupts;
 mod keyboard;
 mod memory;
+mod pic;
 mod shell;
 
 #[used]
