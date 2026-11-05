@@ -7,6 +7,8 @@ use limine::memory_map::EntryType;
 use limine::request::{MemoryMapRequest, RequestsEndMarker, RequestsStartMarker};
 use limine::BaseRevision;
 
+mod memory;
+
 #[used]
 #[link_section = ".limine_requests_start"]
 static REQUESTS_START_MARKER: RequestsStartMarker = RequestsStartMarker::new();
@@ -69,6 +71,20 @@ fn report_memory_map() {
         "Usable memory: {} MiB",
         usable_bytes / (1024 * 1024)
     );
+
+    let mut frame_allocator = memory::FrameAllocator::new(entries);
+    match frame_allocator.allocate_frame() {
+        Some(frame) => {
+            let _ = writeln!(
+                serial::Writer,
+                "Physical frame allocator: allocated frame at 0x{:016x}",
+                frame
+            );
+        }
+        None => {
+            let _ = writeln!(serial::Writer, "Physical frame allocator: no usable frames");
+        }
+    }
 }
 
 fn stop() -> ! {
