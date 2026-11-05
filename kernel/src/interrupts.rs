@@ -91,8 +91,14 @@ pub fn initialise() {
     }
 
     let _ = writeln!(crate::serial::Writer, "Interrupts: 256-entry IDT installed");
-    let _ = writeln!(crate::serial::Writer, "Interrupts: CPU exception gates 0-31 configured");
-    let _ = writeln!(crate::serial::Writer, "Interrupts: maskable interrupts remain disabled");
+    let _ = writeln!(
+        crate::serial::Writer,
+        "Interrupts: CPU exception gates 0-31 configured"
+    );
+    let _ = writeln!(
+        crate::serial::Writer,
+        "Interrupts: maskable interrupts remain disabled"
+    );
 }
 
 extern "x86-interrupt" fn exception_without_error(_frame: InterruptStackFrame) {
@@ -106,12 +112,17 @@ extern "x86-interrupt" fn exception_with_error(_frame: InterruptStackFrame, erro
 fn fatal_exception(message: &str, error_code: Option<u64>) -> ! {
     let _ = writeln!(crate::serial::Writer, "\nKANGA FATAL: {message}");
     if let Some(code) = error_code {
-        let _ = writeln!(crate::serial::Writer, "CPU exception error code: 0x{code:016x}");
+        let _ = writeln!(
+            crate::serial::Writer,
+            "CPU exception error code: 0x{code:016x}"
+        );
     }
 
     loop {
         // SAFETY: A fatal CPU exception cannot safely return to the interrupted
         // context. Disable interrupts and halt the processor permanently.
-        unsafe { asm!("cli; hlt", options(nomem, nostack)); }
+        unsafe {
+            asm!("cli; hlt", options(nomem, nostack));
+        }
     }
 }
