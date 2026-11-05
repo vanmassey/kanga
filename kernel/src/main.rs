@@ -4,9 +4,12 @@
 use core::fmt::Write;
 use core::panic::PanicInfo;
 use limine::memory_map::EntryType;
-use limine::request::{HhdmRequest, MemoryMapRequest, RequestsEndMarker, RequestsStartMarker};
+use limine::request::{
+    FramebufferRequest, HhdmRequest, MemoryMapRequest, RequestsEndMarker, RequestsStartMarker,
+};
 use limine::BaseRevision;
 
+mod graphics;
 mod memory;
 
 #[used]
@@ -24,6 +27,10 @@ static MEMORY_MAP_REQUEST: MemoryMapRequest = MemoryMapRequest::new();
 #[used]
 #[link_section = ".limine_requests"]
 static HHDM_REQUEST: HhdmRequest = HhdmRequest::new();
+
+#[used]
+#[link_section = ".limine_requests"]
+static FRAMEBUFFER_REQUEST: FramebufferRequest = FramebufferRequest::new();
 
 #[used]
 #[link_section = ".limine_requests_end"]
@@ -47,8 +54,47 @@ pub extern "C" fn kanga_entry() -> ! {
     let _ = writeln!(serial::Writer, "Boot protocol: Limine");
 
     report_memory_map();
+    initialise_graphics();
     let _ = writeln!(serial::Writer, "Initialisation complete; kernel idle");
     stop()
+}
+
+fn initialise_graphics() {
+    // SAFETY: Limine's framebuffer response remains valid while boot mappings
+    // are retained, which Kanga does throughout this boot-time initialisation.
+    let response = unsafe { FRAMEBUFFER_REQUEST.get_response() };
+    let Some(response) = response else {
+        let _ = writeln!(serial::Writer, "Framebuffer: no response from bootloader");
+        return;
+    };
+
+    // SAFETY: Limine supplies a valid framebuffer pointer array in its response.
+    let Some(framebuffers) = (unsafe { response.get_framebuffers() }) else {
+        let _ = writeln!(serial::Writer, "Framebuffer: response contained no devices");
+        return;
+    };
+    let Some(framebuffer) = framebuffers.first() else {
+        let _ = writeln!(serial::Writer, "Framebuffer: no display devices available");
+        return;
+    };
+
+    let _ = writeln!(
+        serial::Writer,
+        "Framebuffer: {}x{} at {} bpp",
+        framebuffer.width(),
+        framebuffer.height(),
+        framebuffer.bpp()
+    );
+
+    // SAFETY: The framebuffer is provided by Limine and remains mapped.
+    if unsafe { graphics::draw_boot_screen(framebuffer) } {
+        let _ = writeln!(serial::Writer, "Display: Kanga graphical boot screen ready");
+    } else {
+        let _ = writeln!(
+            serial::Writer,
+            "Display: unsupported framebuffer format or dimensions"
+        );
+    }
 }
 
 fn report_memory_map() {
