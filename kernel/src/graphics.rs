@@ -1,7 +1,112 @@
 use limine::framebuffer::{Framebuffer, MemoryModel};
 
-const BACKGROUND: (u8, u8, u8) = (0, 0, 0);
-const WHITE: (u8, u8, u8) = (192, 192, 192);
+const BLACK: (u8, u8, u8) = (0, 0, 0);
+const DEFAULT_FOREGROUND: (u8, u8, u8) = (192, 192, 192);
+
+const ANSI_COLOURS: [(u8, u8, u8); 16] = [
+    (0, 0, 0), (170, 0, 0), (0, 170, 0), (170, 85, 0),
+    (0, 0, 170), (170, 0, 170), (0, 170, 170), (170, 170, 170),
+    (85, 85, 85), (255, 85, 85), (85, 255, 85), (255, 255, 85),
+    (85, 85, 255), (255, 85, 255), (85, 255, 255), (255, 255, 255),
+];
+
+#[derive(Clone, Copy)]
+enum EscapeState { Ground, Escape, Csi }
+
+#[derive(Clone, Copy)]
+struct AnsiParser {
+    state: EscapeState,
+    parameters: [u16; 8],
+    parameter_count: usize,
+    current: u16,
+    has_digits: bool,
+    foreground: (u8, u8, u8),
+    background: (u8, u8, u8),
+}
+
+impl AnsiParser {
+    const fn new() -> Self {
+        Self {
+            state: EscapeState::Ground,
+            parameters: [0; 8],
+            parameter_count: 0,
+            current: 0,
+            has_digits: false,
+            foreground: DEFAULT_FOREGROUND,
+            background: BLACK,
+        }
+    }
+
+    fn reset_sequence(&mut self) {
+        self.parameters = [0; 8];
+        self.parameter_count = 0;
+        self.current = 0;
+        self.has_digits = false;
+    }
+
+    fn finish_parameter(&mut self) {
+        if self.parameter_count < self.parameters.len() {
+            self.parameters[self.parameter_count] = self.current;
+            self.parameter_count += 1;
+        }
+        self.current = 0;
+        self.has_digits = false;
+    }
+
+    fn apply_sgr(&mut self) {
+        if self.has_digits || self.parameter_count == 0 {
+            self.finish_parameter();
+        }
+        for index in 0..self.parameter_count {
+            let code = self.parameters[index];
+            match code {
+                0 => { self.foreground = DEFAULT_FOREGROUND; self.background = BLACK; }
+                30..=37 => self.foreground = ANSI_COLOURS[(code - 30) as usize],
+                40..=47 => self.background = ANSI_COLOURS[(code - 40) as usize],
+                90..=97 => self.foreground = ANSI_COLOURS[(code - 90 + 8) as usize],
+                100..=107 => self.background = ANSI_COLOURS[(code - 100 + 8) as usize],
+                39 => self.foreground = DEFAULT_FOREGROUND,
+                49 => self.background = BLACK,
+                _ => {}
+            }
+        }
+        self.state = EscapeState::Ground;
+        self.reset_sequence();
+    }
+
+    fn feed(&mut self, byte: u8) -> Option<u8> {
+        match self.state {
+            EscapeState::Ground => {
+                if byte == 0x1b { self.state = EscapeState::Escape; None } else { Some(byte) }
+            }
+            EscapeState::Escape => {
+                if byte == b'[' {
+                    self.state = EscapeState::Csi;
+                    self.reset_sequence();
+                } else {
+                    self.state = EscapeState::Ground;
+                }
+                None
+            }
+            EscapeState::Csi => match byte {
+                b'0'..=b'9' => {
+                    self.current = self.current.saturating_mul(10)
+                        .saturating_add(u16::from(byte - b'0'));
+                    self.has_digits = true;
+                    None
+                }
+                b';' => { self.finish_parameter(); None }
+                b'm' => { self.apply_sgr(); None }
+                0x40..=0x7e => {
+                    self.state = EscapeState::Ground;
+                    self.reset_sequence();
+                    None
+                }
+                _ => None,
+            },
+        }
+    }
+}
 
 struct Surface {
     address: *mut u8,
@@ -69,6 +174,7 @@ pub struct Console {
     rows: usize,
     column: usize,
     row: usize,
+    ansi: AnsiParser,
 }
 
 impl Console {
@@ -109,6 +215,7 @@ impl Console {
             rows: height / CELL_HEIGHT,
             column: 0,
             row: 0,
+            ansi: AnsiParser::new(),
         };
         console.clear();
         Some(console)
@@ -116,7 +223,7 @@ impl Console {
 
     pub fn clear(&mut self) {
         // SAFETY: Console owns the validated live framebuffer mapping.
-        unsafe { self.surface.fill(BACKGROUND) };
+        unsafe { self.surface.fill(self.ansi.background) };
         self.column = 0;
         self.row = 0;
         self.draw_prompt_cursor();
@@ -124,6 +231,7 @@ impl Console {
 
     pub fn write_text(&mut self, text: &str) {
         for byte in text.bytes() {
+            let Some(byte) = self.ansi.feed(byte) else { continue };
             match byte {
                 b'\n' => self.newline(),
                 b'\r' => self.column = 0,
@@ -144,11 +252,11 @@ impl Console {
         // Render a genuine 8x16 VGA glyph: eight pixels wide and sixteen scanlines.
         // SAFETY: The cell is inside the validated console grid.
         unsafe {
-            self.surface.rect(x, y, CELL_WIDTH, CELL_HEIGHT, BACKGROUND);
+            self.surface.rect(x, y, CELL_WIDTH, CELL_HEIGHT, self.ansi.background);
             for (row, bits) in rows.iter().enumerate() {
                 for column in 0..8 {
                     if bits & (1 << (7 - column)) != 0 {
-                        self.surface.rect(x + column, y + row, 1, 1, WHITE);
+                        self.surface.rect(x + column, y + row, 1, 1, self.ansi.foreground);
                     }
                 }
             }
@@ -211,7 +319,7 @@ impl Console {
         let x = self.column * CELL_WIDTH;
         let y = self.row * CELL_HEIGHT + CELL_HEIGHT - 2;
         // SAFETY: Cursor coordinates are within the console cell.
-        unsafe { self.surface.rect(x, y, 7, 1, WHITE) };
+        unsafe { self.surface.rect(x, y, 7, 1, self.ansi.foreground) };
     }
 }
 
