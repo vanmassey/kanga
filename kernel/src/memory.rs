@@ -109,9 +109,8 @@ impl<'a> BitmapFrameAllocator<'a> {
             if start + count > capacity {
                 continue;
             }
-            let available = (start..start + count).all(|index| {
-                self.bitmap[index / 64] & (1_u64 << (index % 64)) == 0
-            });
+            let available = (start..start + count)
+                .all(|index| self.bitmap[index / 64] & (1_u64 << (index % 64)) == 0);
             if !available {
                 continue;
             }

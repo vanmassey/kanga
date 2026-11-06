@@ -161,6 +161,11 @@ fn report_memory_map() {
     );
     let _ = writeln!(
         serial::Writer,
+        "Physical bitmap managed frames: {}",
+        allocator.managed_frame_count()
+    );
+    let _ = writeln!(
+        serial::Writer,
         "Physical bitmap capacity: {} frames ({} GiB)",
         allocator.capacity_frames(),
         (allocator.capacity_frames() as u64 * memory::PAGE_SIZE) / (1024 * 1024 * 1024)
@@ -268,10 +273,15 @@ fn report_memory_map() {
     // SAFETY: frame_three remains allocated and exclusively owned.
     let returned_three = unsafe { allocator.deallocate_frame(frame_three) };
     // SAFETY: The reused frame was just allocated above.
-    let returned_reused = reused.is_some_and(|frame| unsafe {
-        allocator.deallocate_frame(frame)
+    let returned_reused = reused.is_some_and(|frame| {
+        // SAFETY: The reused frame was just allocated above.
+        unsafe { allocator.deallocate_frame(frame) }
     });
-    let integrity = returned_one && returned_three && returned_reused && returned_run && contiguous_passed;
+    let integrity = returned_one
+        && returned_three
+        && returned_reused
+        && returned_run
+        && contiguous_passed;
     let _ = writeln!(
         serial::Writer,
         "Frame allocator integrity test: {}",
@@ -279,7 +289,7 @@ fn report_memory_map() {
     );
     let _ = writeln!(
         serial::Writer,
-        "Physical free-list allocator: {} frames available",
+        "Physical bitmap allocator: {} frames available",
         allocator.free_frame_count()
     );
 }
