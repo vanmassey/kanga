@@ -83,6 +83,16 @@ A successful inspection only confirms that the listed messages appear in the sav
 
 Kanga 0.1.0 is an experimental kernel milestone, not a general-purpose operating system. It has no virtual-memory manager or kernel heap, process or thread scheduler, user mode, system-call interface, persistent disk filesystem, PCI device discovery, general IRQ dispatcher, APIC/IOAPIC support, networking, USB stack, desktop or graphical window system. The physical-frame bitmap manages addresses below 4 GiB. The shared allocator uses a spin lock that must not be acquired from an interrupt handler that can interrupt a lock holder. QEMU validation does not establish compatibility with physical machines; hardware support must be tested separately.
 
+## Development roadmap
+
+Development is moving towards **Kanga 0.2.0**. The next milestone focuses on kernel reliability, interrupt-safe synchronisation, virtual memory and a kernel heap, PCI device discovery, and storage/filesystem foundations.
+
+See the [Kanga 0.2.0 roadmap](ROADMAP.md) for planned work and completion criteria. These are development goals, not claims that the features are already implemented.
+
+## Contributing
+
+Contributions in code, testing and documentation are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) and check the [open issues](https://github.com/vanmassey/kanga/issues) before starting work. For substantial architectural changes, open an issue first so the design can be discussed.
+
 ## Project principles
 
 - Keep Kanga's implementation and development history independent.
