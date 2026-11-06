@@ -23,14 +23,14 @@ impl Write for Output<'_> {
 pub fn run(mut console: Option<Console>) -> ! {
     {
         let mut output = Output(console.as_mut());
-        let _ = writeln!(output, "Kanga OS 0.1.0");
+        let _ = writeln!(output, "\x1b[1;36mKanga OS 0.1.0\x1b[0m");
         let _ = writeln!(output, "(C) 2026 Kanga Development Team");
         let _ = writeln!(output);
-        let _ = writeln!(output, "Initialising kernel........ [ OK ]");
-        let _ = writeln!(output, "Setting up interrupts...... [ OK ]");
-        let _ = writeln!(output, "Initialising keyboard...... [ OK ]");
-        let _ = writeln!(output, "Starting command shell..... [ OK ]");
-        let _ = writeln!(output, "KangaFS RAM filesystem..... [ OK ]");
+        let _ = writeln!(output, "Initialising kernel........ \x1b[32m[ OK ]\x1b[0m");
+        let _ = writeln!(output, "Setting up interrupts...... \x1b[32m[ OK ]\x1b[0m");
+        let _ = writeln!(output, "Initialising keyboard...... \x1b[32m[ OK ]\x1b[0m");
+        let _ = writeln!(output, "Starting command shell..... \x1b[32m[ OK ]\x1b[0m");
+        let _ = writeln!(output, "KangaFS RAM filesystem..... \x1b[32m[ OK ]\x1b[0m");
         let _ = writeln!(output);
         let _ = writeln!(output, "Type HELP for a list of commands.");
         let _ = writeln!(output);
