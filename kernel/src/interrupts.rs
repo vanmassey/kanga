@@ -126,46 +126,64 @@ pub fn initialise() {
         let idt = ptr::addr_of_mut!(IDT).cast::<IdtEntry>();
         for vector in 0..IDT_ENTRIES {
             idt.add(vector).write(IdtEntry::new(
-                unexpected_interrupt as usize,
+                unexpected_interrupt as *const () as usize,
                 selector,
                 0,
             ));
         }
 
-        set_gate(idt, 0, exception_0 as usize, selector, 0);
-        set_gate(idt, 1, exception_1 as usize, selector, 0);
-        set_gate(idt, 2, exception_2 as usize, selector, IST_NMI);
-        set_gate(idt, 3, exception_3 as usize, selector, 0);
-        set_gate(idt, 4, exception_4 as usize, selector, 0);
-        set_gate(idt, 5, exception_5 as usize, selector, 0);
-        set_gate(idt, 6, exception_6 as usize, selector, 0);
-        set_gate(idt, 7, exception_7 as usize, selector, 0);
-        set_gate(idt, 8, exception_8 as usize, selector, IST_DOUBLE_FAULT);
-        set_gate(idt, 9, exception_9 as usize, selector, 0);
-        set_gate(idt, 10, exception_10 as usize, selector, 0);
-        set_gate(idt, 11, exception_11 as usize, selector, 0);
-        set_gate(idt, 12, exception_12 as usize, selector, 0);
-        set_gate(idt, 13, exception_13 as usize, selector, 0);
-        set_gate(idt, 14, exception_14 as usize, selector, IST_PAGE_FAULT);
-        set_gate(idt, 15, exception_15 as usize, selector, 0);
-        set_gate(idt, 16, exception_16 as usize, selector, 0);
-        set_gate(idt, 17, exception_17 as usize, selector, 0);
-        set_gate(idt, 18, exception_18 as usize, selector, IST_MACHINE_CHECK);
-        set_gate(idt, 19, exception_19 as usize, selector, 0);
-        set_gate(idt, 20, exception_20 as usize, selector, 0);
-        set_gate(idt, 21, exception_21 as usize, selector, 0);
-        set_gate(idt, 22, exception_22 as usize, selector, 0);
-        set_gate(idt, 23, exception_23 as usize, selector, 0);
-        set_gate(idt, 24, exception_24 as usize, selector, 0);
-        set_gate(idt, 25, exception_25 as usize, selector, 0);
-        set_gate(idt, 26, exception_26 as usize, selector, 0);
-        set_gate(idt, 27, exception_27 as usize, selector, 0);
-        set_gate(idt, 28, exception_28 as usize, selector, 0);
-        set_gate(idt, 29, exception_29 as usize, selector, 0);
-        set_gate(idt, 30, exception_30 as usize, selector, 0);
-        set_gate(idt, 31, exception_31 as usize, selector, 0);
-        set_gate(idt, 0x20, timer_irq as usize, selector, 0);
-        set_gate(idt, 0x21, keyboard_irq as usize, selector, 0);
+        set_gate(idt, 0, exception_0 as *const () as usize, selector, 0);
+        set_gate(idt, 1, exception_1 as *const () as usize, selector, 0);
+        set_gate(idt, 2, exception_2 as *const () as usize, selector, IST_NMI);
+        set_gate(idt, 3, exception_3 as *const () as usize, selector, 0);
+        set_gate(idt, 4, exception_4 as *const () as usize, selector, 0);
+        set_gate(idt, 5, exception_5 as *const () as usize, selector, 0);
+        set_gate(idt, 6, exception_6 as *const () as usize, selector, 0);
+        set_gate(idt, 7, exception_7 as *const () as usize, selector, 0);
+        set_gate(
+            idt,
+            8,
+            exception_8 as *const () as usize,
+            selector,
+            IST_DOUBLE_FAULT,
+        );
+        set_gate(idt, 9, exception_9 as *const () as usize, selector, 0);
+        set_gate(idt, 10, exception_10 as *const () as usize, selector, 0);
+        set_gate(idt, 11, exception_11 as *const () as usize, selector, 0);
+        set_gate(idt, 12, exception_12 as *const () as usize, selector, 0);
+        set_gate(idt, 13, exception_13 as *const () as usize, selector, 0);
+        set_gate(
+            idt,
+            14,
+            exception_14 as *const () as usize,
+            selector,
+            IST_PAGE_FAULT,
+        );
+        set_gate(idt, 15, exception_15 as *const () as usize, selector, 0);
+        set_gate(idt, 16, exception_16 as *const () as usize, selector, 0);
+        set_gate(idt, 17, exception_17 as *const () as usize, selector, 0);
+        set_gate(
+            idt,
+            18,
+            exception_18 as *const () as usize,
+            selector,
+            IST_MACHINE_CHECK,
+        );
+        set_gate(idt, 19, exception_19 as *const () as usize, selector, 0);
+        set_gate(idt, 20, exception_20 as *const () as usize, selector, 0);
+        set_gate(idt, 21, exception_21 as *const () as usize, selector, 0);
+        set_gate(idt, 22, exception_22 as *const () as usize, selector, 0);
+        set_gate(idt, 23, exception_23 as *const () as usize, selector, 0);
+        set_gate(idt, 24, exception_24 as *const () as usize, selector, 0);
+        set_gate(idt, 25, exception_25 as *const () as usize, selector, 0);
+        set_gate(idt, 26, exception_26 as *const () as usize, selector, 0);
+        set_gate(idt, 27, exception_27 as *const () as usize, selector, 0);
+        set_gate(idt, 28, exception_28 as *const () as usize, selector, 0);
+        set_gate(idt, 29, exception_29 as *const () as usize, selector, 0);
+        set_gate(idt, 30, exception_30 as *const () as usize, selector, 0);
+        set_gate(idt, 31, exception_31 as *const () as usize, selector, 0);
+        set_gate(idt, 0x20, timer_irq as *const () as usize, selector, 0);
+        set_gate(idt, 0x21, keyboard_irq as *const () as usize, selector, 0);
 
         let pointer = IdtPointer {
             limit: (size_of::<[IdtEntry; IDT_ENTRIES]>() - 1) as u16,
@@ -197,17 +215,10 @@ pub fn initialise() {
     let _ = writeln!(crate::serial::Writer, "Interrupts: keyboard IRQ1 enabled");
 }
 
-unsafe fn set_gate(
-    idt: *mut IdtEntry,
-    vector: usize,
-    handler: usize,
-    selector: u16,
-    ist: u8,
-) {
+unsafe fn set_gate(idt: *mut IdtEntry, vector: usize, handler: usize, selector: u16, ist: u8) {
     // SAFETY: The caller supplies a valid vector within the 256-entry IDT.
     unsafe {
-        idt.add(vector)
-            .write(IdtEntry::new(handler, selector, ist));
+        idt.add(vector).write(IdtEntry::new(handler, selector, ist));
     }
 }
 
