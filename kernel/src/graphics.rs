@@ -127,31 +127,31 @@ impl AnsiParser {
                     return None;
                 }
                 match byte {
-                b'0'..=b'9' => {
-                    self.current = self
-                        .current
-                        .saturating_mul(10)
-                        .saturating_add(u16::from(byte - b'0'));
-                    self.has_digits = true;
-                    None
-                }
-                b';' => {
-                    if !self.finish_parameter() {
+                    b'0'..=b'9' => {
+                        self.current = self
+                            .current
+                            .saturating_mul(10)
+                            .saturating_add(u16::from(byte - b'0'));
+                        self.has_digits = true;
+                        None
+                    }
+                    b';' => {
+                        if !self.finish_parameter() {
+                            self.state = EscapeState::Ground;
+                            self.reset_sequence();
+                        }
+                        None
+                    }
+                    b'm' => {
+                        self.apply_sgr();
+                        None
+                    }
+                    0x40..=0x7e => {
                         self.state = EscapeState::Ground;
                         self.reset_sequence();
+                        None
                     }
-                    None
-                }
-                b'm' => {
-                    self.apply_sgr();
-                    None
-                }
-                0x40..=0x7e => {
-                    self.state = EscapeState::Ground;
-                    self.reset_sequence();
-                    None
-                }
-                _ => None,
+                    _ => None,
                 }
             }
         }
