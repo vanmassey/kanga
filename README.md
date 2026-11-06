@@ -2,35 +2,35 @@
 
 Kanga is an independent x86-64 operating-system project. It is not a Linux distribution and is not a continuation of another kernel.
 
-The kernel is written in Rust with no_std and uses the Limine boot protocol.
+The kernel is written in Rust with `no_std` and uses the Limine boot protocol.
 
 ## Current state
 
-Kanga currently:
+Kanga currently provides:
 
-- boots through Limine on x86-64;
-- validates the Limine base revision;
-- initialises a COM1 serial console;
-- reports kernel identity and boot progress;
-- reads and summarises the Limine physical memory map;
-- allocates page-aligned 4 KiB physical frames from Limine usable memory with a bitmap allocator;
-- requests the higher-half direct map and converts the frame address; and
-- clears allocated frames and verifies direct-map memory access with a write/read test;
-- requests a Limine RGB framebuffer and presents a black-and-white DOS-style scrolling text console; and
-- accepts interrupt-driven PS/2 keyboard input through IRQ1 in a small interactive shell, with shell output mirrored to the serial console;
-- programs the PIT channel 0 at 100 Hz and counts timer IRQ0 ticks atomically; and
-- reports elapsed uptime and raw timer ticks through the shell's `TIME` command; and
-- reads the CMOS real-time clock through the shell's `DATE` command, handling BCD/binary and 12/24-hour clock modes; and
-- provides KangaFS, an original fixed-capacity RAM filesystem with a root directory, sixteen file slots and up to 256 bytes per file.
+- x86-64 BIOS/UEFI boot through Limine, with base-revision validation;
+- COM1 serial diagnostics and mirrored shell output;
+- Limine memory-map reporting and a bitmap physical-frame allocator for page-aligned 4 KiB frames below 4 GiB;
+- a higher-half direct-map address conversion helper and boot-time frame read/write checks;
+- a 32-bit RGB framebuffer console with an 8x16 VGA-compatible font;
+- a black console background, light-grey default text, and ANSI SGR standard/bright 16-colour foreground and background rendering;
+- line wrapping, backspace, clear-screen, a prompt cursor, and 128 lines of scrollback;
+- interrupt-driven PS/2 keyboard input through IRQ1;
+- a 256-entry IDT with fatal CPU exception handlers for vectors 0–31;
+- a remapped legacy 8259 PIC, with keyboard IRQ1 and PIT timer IRQ0 enabled;
+- a 100 Hz PIT tick counter, uptime reporting and a CMOS real-time clock reader; and
+- KangaFS, a bounded RAM filesystem with a root directory, sixteen file slots, filenames up to 24 characters and file contents up to 256 bytes.
 
-The framebuffer renderer supports 32-bit RGB modes and renders a real 8x16 VGA-compatible glyph table. The console uses a black background and light-grey default text, with ASCII output, wrapping, backspace, clearing and scrolling. Scrolling uses the hardware framebuffer pitch for every copied row. It parses ANSI SGR colour sequences for the standard and bright 16-colour foreground/background palettes, including reset and default-colour codes; cursor movement and 24-bit true colour are not yet supported. The shell supports DOS-style DIR, CLS, VER and ECHO, alongside HELP, INFO, MEM, TIME, DATE (also CLOCK/RTC), UPTIME, ABOUT, CAL and HALT, plus KangaFS commands WRITE, TYPE, DEL and FSINFO. CAL generates a month grid from the CMOS date. KangaFS is an original bounded in-memory filesystem: sixteen files, filenames up to 24 characters and file contents up to 256 bytes. Files can be created, overwritten, listed, read and deleted. This first version is volatile RAM storage; files do not survive a reboot and there is no disk persistence yet. Commands are case-insensitive. The kernel now installs a 256-entry IDT with gates for CPU exceptions 0–31 and fatal handlers that report an exception (and error code where applicable) over serial before halting. The 8259 PIC is remapped to vectors 0x20–0x2F, with timer IRQ0 and keyboard IRQ1 unmasked. The PIT channel 0 runs at 100 Hz; its IRQ handler only increments an atomic tick counter. The shell's `TIME` command reports uptime and tick count. The IRQ handler copies scancodes into a fixed-size lock-free queue; translation and shell processing happen outside interrupt context. Other IRQs remain masked; APIC support, timer interrupts, terminal escape sequences and a desktop are not implemented. The physical frame allocator uses a static bitmap for frames below 4 GiB, reserves the first MiB, supports individual and contiguous allocations, and rejects duplicate frees. See docs/memory.md for its design and limitations.
+The shell includes `HELP`, `DIR`, `CLS`, `VER`, `ECHO`, `INFO`, `MEM`, `TIME`, `DATE` (also `CLOCK`/`RTC`), `UPTIME`, `ABOUT`, `CAL`, `HALT`, `FSINFO`, `WRITE`, `TYPE` and `DEL`. Commands are case-insensitive. KangaFS contents exist only in RAM and are lost on reboot.
+
+The console retains up to 128 logical lines. Use **Up Arrow** to browse older output and **Down Arrow** to return towards the live prompt. Typing, Backspace or Enter returns to the live prompt. The renderer currently supports ANSI SGR palette colours only; cursor movement, terminal erase commands and 24-bit true colour are not implemented.
 
 ## Build requirements
 
-- Rust nightly, with rust-src and the x86_64-unknown-none target (requested by rust-toolchain.toml)
-- make and a C compiler, to build Limine's host utility
-- curl and sha256sum
-- xorriso
+- Rust nightly, with `rust-src` and the `x86_64-unknown-none` target (requested by `rust-toolchain.toml`)
+- `make` and a C compiler, to build Limine's host utility
+- `curl` and `sha256sum`
+- `xorriso`
 - QEMU x86-64 system emulator (for running the image)
 
 ## Build and run
@@ -55,13 +55,17 @@ Run it in QEMU:
 make run
 ~~~
 
-This opens a QEMU window showing Kanga's monochrome DOS-style text console. Serial diagnostics and shell output remain connected to the terminal.
+This opens a QEMU window showing Kanga's framebuffer text console. Serial diagnostics and shell output remain connected to the terminal.
 
 The ISO build downloads a pinned Limine 12.9.6 binary release and verifies its SHA-256 checksum before use.
 
 ## Automated validation
 
-GitHub Actions checks formatting, builds the ISO, boots it in QEMU, injects DOS-style commands through QEMU's virtual keyboard, verifies shell output over serial, and captures a PPM screenshot of the live framebuffer. A screenshot check confirms that the rendered display is non-blank. This exercises the PS/2 IRQ1 input path, VGA-font renderer and boot sequence.
+GitHub Actions checks shell-script syntax and Rust formatting, builds the bootable ISO, and boots Kanga in QEMU. It injects shell commands through the virtual keyboard and verifies boot diagnostics, memory allocator checks, clock output, RAM filesystem operations and shell output over serial. It captures live, HELP, scrollback and ANSI-colour framebuffer screenshots, checks that the images are non-blank, and verifies the expected ANSI palette colours. The workflow uploads the ISO, serial log and screenshots as an artifact.
+
+## Known limitations
+
+Kanga 0.1.0 is an experimental kernel milestone, not a general-purpose operating system. It has no virtual-memory manager or kernel heap, process or thread scheduler, user mode, system-call interface, persistent disk filesystem, PCI device discovery, general IRQ dispatcher, APIC/IOAPIC support, networking, USB stack, desktop or graphical window system. The physical-frame bitmap manages addresses below 4 GiB. The shared allocator uses a spin lock that must not be acquired from an interrupt handler that can interrupt a lock holder. QEMU validation does not establish compatibility with physical machines; hardware support must be tested separately.
 
 ## Project principles
 
@@ -72,4 +76,4 @@ GitHub Actions checks formatting, builds the ISO, boots it in QEMU, injects DOS-
 
 ## License
 
-GPL-2.0-only. See LICENSE.
+GPL-2.0-only. See [LICENSE](LICENSE).
