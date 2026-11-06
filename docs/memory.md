@@ -18,7 +18,7 @@ Kanga uses a bitmap to track 4 KiB physical frames. One bit represents one frame
 - A contiguous-run allocator can reserve adjacent frames for future page-table and DMA-related work.
 - Usable frames above the bitmap's 4 GiB limit are counted and reported, but are not allocated.
 
-The allocator requires no heap. Allocation scans the bitmap, so it is O(number of bitmap words) in the worst case rather than O(1). It currently assumes single-CPU access; a lock or other synchronisation is required before multiple CPUs can allocate or free frames concurrently. The deallocation function is unsafe because callers must return only frames they own and must stop using them before returning them.
+The allocator requires no heap. Allocation scans the bitmap, so it is O(number of bitmap words) in the worst case rather than O(1). It is retained as a kernel-wide service and serialises access with a spin mutex across CPUs. The lock must not be acquired from an interrupt handler that can interrupt code already holding it; an IRQ-aware locking path is still required. The deallocation function is unsafe because callers must return only frames they own and must stop using them before returning them.
 
 ## Higher-half direct map
 
@@ -32,7 +32,7 @@ During QEMU boot, Kanga allocates three distinct frames, verifies direct-map mem
 
 ## Remaining work
 
-- synchronisation for multiple CPUs;
+- IRQ-safe locking and allocation entry points;
 - allocating frames above the current 4 GiB bitmap limit;
 - a page-table abstraction and controlled mapping changes;
 - mapping and unmapping virtual pages with TLB invalidation;

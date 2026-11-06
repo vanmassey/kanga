@@ -212,3 +212,81 @@ pub unsafe fn zero_and_verify_frame(virtual_address: u64) -> bool {
     unsafe { test_ptr.write_volatile(0) };
     observed == FRAME_TEST_PATTERN
 }
+
+
+use core::cell::UnsafeCell;
+use core::sync::atomic::{AtomicBool, Ordering};
+
+/// Serialises access to the shared frame allocator across CPUs.
+struct SpinMutex<T> {
+    locked: AtomicBool,
+    value: UnsafeCell<T>,
+}
+
+// SAFETY: The lock grants exclusive access to the protected value.
+unsafe impl<T: Send> Sync for SpinMutex<T> {}
+
+impl<T> SpinMutex<T> {
+    const fn new(value: T) -> Self {
+        Self { locked: AtomicBool::new(false), value: UnsafeCell::new(value) }
+    }
+
+    fn lock(&self) -> SpinMutexGuard<'_, T> {
+        while self.locked.compare_exchange_weak(
+            false, true, Ordering::Acquire, Ordering::Relaxed
+        ).is_err() {
+            while self.locked.load(Ordering::Relaxed) {
+                core::hint::spin_loop();
+            }
+        }
+        SpinMutexGuard { mutex: self }
+    }
+}
+
+struct SpinMutexGuard<'a, T> { mutex: &'a SpinMutex<T> }
+
+impl<T> core::ops::Deref for SpinMutexGuard<'_, T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        // SAFETY: This guard owns the lock.
+        unsafe { &*self.mutex.value.get() }
+    }
+}
+
+impl<T> core::ops::DerefMut for SpinMutexGuard<'_, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        // SAFETY: This guard owns the lock exclusively.
+        unsafe { &mut *self.mutex.value.get() }
+    }
+}
+
+impl<T> Drop for SpinMutexGuard<'_, T> {
+    fn drop(&mut self) {
+        self.mutex.locked.store(false, Ordering::Release);
+    }
+}
+
+static GLOBAL_FRAME_ALLOCATOR: SpinMutex<Option<BitmapFrameAllocator<'static>>> =
+    SpinMutex::new(None);
+
+/// Initialise the shared allocator once. Limine's memory-map response and the
+/// static bitmap both remain valid for the lifetime of the kernel.
+pub fn initialise_global(
+    entries: &'static [&'static Entry],
+    bitmap: &'static mut [u64],
+) -> bool {
+    let mut allocator = GLOBAL_FRAME_ALLOCATOR.lock();
+    if allocator.is_some() {
+        return false;
+    }
+    *allocator = Some(BitmapFrameAllocator::new(entries, bitmap));
+    true
+}
+
+/// Run a kernel subsystem operation against the shared allocator.
+pub fn with_global_allocator<R>(
+    operation: impl FnOnce(&mut BitmapFrameAllocator<'static>) -> R,
+) -> Option<R> {
+    let mut allocator = GLOBAL_FRAME_ALLOCATOR.lock();
+    allocator.as_mut().map(operation)
+}
