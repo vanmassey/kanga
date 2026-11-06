@@ -63,6 +63,22 @@ The ISO build downloads a pinned Limine 12.9.6 binary release and verifies its S
 
 GitHub Actions checks shell-script syntax and Rust formatting, builds the bootable ISO, and boots Kanga in QEMU. It injects shell commands through the virtual keyboard and verifies boot diagnostics, memory allocator checks, clock output, RAM filesystem operations and shell output over serial. It captures live, HELP, scrollback and ANSI-colour framebuffer screenshots, checks that the images are non-blank, and verifies the expected ANSI palette colours. The workflow uploads the ISO, serial log and screenshots as an artifact.
 
+### Inspecting a saved serial log
+
+The host-side serial log inspector checks for expected boot checkpoints and obvious fatal markers. It does not start QEMU or modify the kernel:
+
+~~~sh
+python3 scripts/inspect-serial.py build/serial.log
+~~~
+
+Its standard-library tests can be run independently:
+
+~~~sh
+python3 -m unittest discover -s tests -v
+~~~
+
+A successful inspection only confirms that the listed messages appear in the saved log; it is not a substitute for reviewing the log, checking the framebuffer, or testing the kernel in QEMU.
+
 ## Known limitations
 
 Kanga 0.1.0 is an experimental kernel milestone, not a general-purpose operating system. It has no virtual-memory manager or kernel heap, process or thread scheduler, user mode, system-call interface, persistent disk filesystem, PCI device discovery, general IRQ dispatcher, APIC/IOAPIC support, networking, USB stack, desktop or graphical window system. The physical-frame bitmap manages addresses below 4 GiB. The shared allocator uses a spin lock that must not be acquired from an interrupt handler that can interrupt a lock holder. QEMU validation does not establish compatibility with physical machines; hardware support must be tested separately.
