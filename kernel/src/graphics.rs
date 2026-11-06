@@ -360,18 +360,22 @@ impl Console {
     }
 
     fn redraw(&mut self) {
-        // SAFETY: Console owns the validated framebuffer mapping.
-        unsafe { self.surface.fill(BLACK) };
         let live_top = self.line.saturating_sub(self.row);
         let first_line = live_top.saturating_sub(self.view_offset);
         for screen_row in 0..self.rows {
             let logical_line = first_line.saturating_add(screen_row);
-            if logical_line > self.line || self.line - logical_line >= SCROLLBACK_LINES {
-                continue;
-            }
+            let line_is_available = logical_line <= self.line
+                && self.line - logical_line < SCROLLBACK_LINES;
             for column in 0..self.columns {
-                // SAFETY: Both coordinates are bounded by the fixed ring.
-                let cell = unsafe { read_cell(logical_line, column) };
+                let cell = if line_is_available {
+                    // SAFETY: Both coordinates are bounded by the fixed ring.
+                    unsafe { read_cell(logical_line, column) }
+                } else {
+                    Cell::EMPTY
+                };
+                // Repaint each character cell in place. Clearing the entire
+                // framebuffer first caused a visible black flash while the
+                // historical text was being redrawn.
                 self.draw_cell(column, screen_row, cell);
             }
         }
