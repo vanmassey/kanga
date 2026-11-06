@@ -498,22 +498,19 @@ impl Console {
 
     fn scroll(&mut self) {
         let pitch = self.surface.pitch;
-        let first_source_row = CELL_HEIGHT;
-        let rows_to_move = self.surface.height.saturating_sub(CELL_HEIGHT);
-        // Move one complete physical framebuffer row at a time. Every offset
-        // is derived from Limine's pitch, including any alignment padding.
-        // Forward order is safe because each source row is below its target.
-        // SAFETY: Console::new validated the full pitch * height mapping.
+        let first_source_offset = CELL_HEIGHT * pitch;
+        let bytes_to_move = self.surface.height.saturating_sub(CELL_HEIGHT) * pitch;
+        // Shift the visible framebuffer in one overlapping-safe memory move.
+        // A per-scanline loop made the scroll visibly crawl down the display.
+        // Using memmove semantics keeps the operation contiguous and fast.
+        // SAFETY: Console::new validated the full pitch * height mapping;
+        // source and destination are within it and core::ptr::copy permits overlap.
         unsafe {
-            for destination_row in 0..rows_to_move {
-                let source_offset = (destination_row + first_source_row) * pitch;
-                let destination_offset = destination_row * pitch;
-                core::ptr::copy_nonoverlapping(
-                    self.surface.address.add(source_offset),
-                    self.surface.address.add(destination_offset),
-                    pitch,
-                );
-            }
+            core::ptr::copy(
+                self.surface.address.add(first_source_offset),
+                self.surface.address,
+                bytes_to_move,
+            );
         }
         // Clear the newly exposed bottom rows.
         // SAFETY: The rectangle is clipped to the framebuffer bounds.
