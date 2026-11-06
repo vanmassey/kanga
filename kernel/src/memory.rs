@@ -147,8 +147,8 @@ impl<'a> FrameAllocator<'a> {
             return false;
         };
         let Ok(address) = usize::try_from(virtual_address) else {
-        return false;
-    };
+            return false;
+        };
         if address % core::mem::align_of::<u64>() != 0 {
             return false;
         }
