@@ -196,6 +196,7 @@ pub fn initialise() {
     let _ = writeln!(
         crate::serial::Writer,
         "Interrupts: 32 vector-specific CPU exception handlers installed"
+        "Interrupts: CPU exception gates 0-31 configured"
     );
     let _ = writeln!(
         crate::serial::Writer,
