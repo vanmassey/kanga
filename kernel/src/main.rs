@@ -95,7 +95,10 @@ fn initialise_graphics() -> Option<graphics::Console> {
         framebuffer.bpp()
     );
 
-    let _ = writeln!(serial::Writer, "Display: ANSI colour framebuffer text console");
+    let _ = writeln!(
+        serial::Writer,
+        "Display: ANSI colour framebuffer text console"
+    );
 
     // SAFETY: Limine's framebuffer mapping remains active for the kernel run.
     let console = unsafe { graphics::Console::new(&framebuffer) };
