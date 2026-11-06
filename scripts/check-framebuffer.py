@@ -19,4 +19,18 @@ lit = sum(1 for i in range(0, len(pixels), 3)
           if pixels[i] > 80 or pixels[i + 1] > 80 or pixels[i + 2] > 80)
 if lit < 100:
     raise SystemExit(f"framebuffer appears blank: only {lit} lit pixels")
+if "--expect-ansi" in sys.argv:
+    green = 0
+    cyan = 0
+    for i in range(0, len(pixels), 3):
+        red, green_channel, blue = pixels[i:i + 3]
+        if green_channel > red + 40 and green_channel > blue + 40:
+            green += 1
+        if green_channel > red + 40 and blue > red + 40:
+            cyan += 1
+    if green < 10 or cyan < 10:
+        raise SystemExit(
+            f"ANSI colours missing from screenshot: {green} green, {cyan} cyan pixels"
+        )
+    print(f"ANSI colour check passed: {green} green and {cyan} cyan pixels")
 print(f"Framebuffer screenshot validated: {width}x{height}, {lit} lit pixels")
