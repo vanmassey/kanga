@@ -24,7 +24,7 @@ jobs:
       - name: Boot Kanga and test keyboard IRQ in QEMU
         run: |
           set -eu
-          rm -f build/serial.log build/qemu-monitor.sock
+          rm -f build/serial.log build/qemu-monitor.sock build/kanga-screen.ppm build/kanga-help-screen.ppm
           qemu-system-x86_64 \
             -machine pc -m 256M -boot d -cdrom build/kanga.iso \
             -serial file:build/serial.log \
@@ -61,6 +61,7 @@ jobs:
           grep -F "Kanga> " build/serial.log
           sleep 1
 
+          # Exercise the multi-line HELP output before later commands scroll it away.
           for key in h e l p ret; do
             printf 'sendkey %s 80\n' "$key" | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
             sleep 0.15
@@ -98,11 +99,10 @@ jobs:
           grep -F "Display: ANSI colour framebuffer text console" build/serial.log
           grep -F "Display: framebuffer text console ready" build/serial.log
           grep -F "Initialising keyboard...... " build/serial.log
-          grep -F 
           grep -F "Starting command shell..... " build/serial.log
           grep -F "Type HELP for a list of commands." build/serial.log
-          grep -F "Kanga OS [Version 0.1.0]" build/serial.log
-          grep -F 
+          grep -F "Kanga OS 0.1.0" build/serial.log
+          grep -F "Kanga DOS-style command shell" build/serial.log
           grep -F "KangaFS RAM filesystem..... " build/serial.log
           grep -F "Saved note.txt (16 bytes)." build/serial.log
           grep -F "hello from kanga" build/serial.log
@@ -121,69 +121,6 @@ jobs:
             build/kanga.iso
             build/serial.log
             build/kanga-screen.ppm
-          if-no-files-found: warn
-          retention-days: 7
-\033[32m[ OK ]\033[0m' build/serial.log
-          grep -F "Starting command shell..... [ OK ]" build/serial.log
-          grep -F "Type HELP for a list of commands." build/serial.log
-          grep -F "Kanga OS [Version 0.1.0]" build/serial.log
-          grep -F "KangaFS RAM filesystem..... [ OK ]" build/serial.log
-          grep -F "Saved note.txt (16 bytes)." build/serial.log
-          grep -F "hello from kanga" build/serial.log
-          grep -F "Deleted note.txt." build/serial.log
-          ! grep -F "PC speaker" build/serial.log
-          test -s build/kanga-screen.ppm
-          python3 scripts/check-framebuffer.py build/kanga-screen.ppm
-      - name: Upload QEMU screenshot, bootable ISO and serial log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: kanga-iso-and-boot-log
-          path: |
-            build/kanga.iso
-            build/serial.log
-            build/kanga-screen.ppm
-          if-no-files-found: warn
-          retention-days: 7
-\033[1;36mKanga OS 0.1.0\033[0m' build/serial.log
-          grep -F "Kanga DOS-style command shell" build/serial.log
-          grep -F "KangaFS RAM filesystem..... [ OK ]" build/serial.log
-          grep -F "Saved note.txt (16 bytes)." build/serial.log
-          grep -F "hello from kanga" build/serial.log
-          grep -F "Deleted note.txt." build/serial.log
-          ! grep -F "PC speaker" build/serial.log
-          test -s build/kanga-screen.ppm
-          python3 scripts/check-framebuffer.py build/kanga-screen.ppm
-      - name: Upload QEMU screenshot, bootable ISO and serial log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: kanga-iso-and-boot-log
-          path: |
-            build/kanga.iso
-            build/serial.log
-            build/kanga-screen.ppm
-          if-no-files-found: warn
-          retention-days: 7
-\033[32m[ OK ]\033[0m' build/serial.log
-          grep -F "Starting command shell..... [ OK ]" build/serial.log
-          grep -F "Type HELP for a list of commands." build/serial.log
-          grep -F "Kanga OS [Version 0.1.0]" build/serial.log
-          grep -F "KangaFS RAM filesystem..... [ OK ]" build/serial.log
-          grep -F "Saved note.txt (16 bytes)." build/serial.log
-          grep -F "hello from kanga" build/serial.log
-          grep -F "Deleted note.txt." build/serial.log
-          ! grep -F "PC speaker" build/serial.log
-          test -s build/kanga-screen.ppm
-          python3 scripts/check-framebuffer.py build/kanga-screen.ppm
-      - name: Upload QEMU screenshot, bootable ISO and serial log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: kanga-iso-and-boot-log
-          path: |
-            build/kanga.iso
-            build/serial.log
-            build/kanga-screen.ppm
+            build/kanga-help-screen.ppm
           if-no-files-found: warn
           retention-days: 7
