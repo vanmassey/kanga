@@ -36,6 +36,7 @@ struct AnsiParser {
     parameter_count: usize,
     current: u16,
     has_digits: bool,
+    sequence_len: u8,
     foreground: (u8, u8, u8),
     background: (u8, u8, u8),
 }
@@ -48,6 +49,7 @@ impl AnsiParser {
             parameter_count: 0,
             current: 0,
             has_digits: false,
+            sequence_len: 0,
             foreground: DEFAULT_FOREGROUND,
             background: BLACK,
         }
@@ -58,20 +60,25 @@ impl AnsiParser {
         self.parameter_count = 0;
         self.current = 0;
         self.has_digits = false;
+        self.sequence_len = 0;
     }
 
-    fn finish_parameter(&mut self) {
-        if self.parameter_count < self.parameters.len() {
-            self.parameters[self.parameter_count] = self.current;
-            self.parameter_count += 1;
+    fn finish_parameter(&mut self) -> bool {
+        if self.parameter_count >= self.parameters.len() {
+            return false;
         }
+        self.parameters[self.parameter_count] = self.current;
+        self.parameter_count += 1;
         self.current = 0;
         self.has_digits = false;
+        true
     }
 
     fn apply_sgr(&mut self) {
-        if self.has_digits || self.parameter_count == 0 {
-            self.finish_parameter();
+        if !self.finish_parameter() {
+            self.state = EscapeState::Ground;
+            self.reset_sequence();
+            return;
         }
         for index in 0..self.parameter_count {
             let code = self.parameters[index];
@@ -112,7 +119,14 @@ impl AnsiParser {
                 }
                 None
             }
-            EscapeState::Csi => match byte {
+            EscapeState::Csi => {
+                self.sequence_len = self.sequence_len.saturating_add(1);
+                if self.sequence_len > 32 {
+                    self.state = EscapeState::Ground;
+                    self.reset_sequence();
+                    return None;
+                }
+                match byte {
                 b'0'..=b'9' => {
                     self.current = self
                         .current
@@ -122,7 +136,10 @@ impl AnsiParser {
                     None
                 }
                 b';' => {
-                    self.finish_parameter();
+                    if !self.finish_parameter() {
+                        self.state = EscapeState::Ground;
+                        self.reset_sequence();
+                    }
                     None
                 }
                 b'm' => {
@@ -135,7 +152,8 @@ impl AnsiParser {
                     None
                 }
                 _ => None,
-            },
+                }
+            }
         }
     }
 }
@@ -327,19 +345,23 @@ impl Console {
     }
 
     fn scroll(&mut self) {
-        let scroll_bytes = CELL_HEIGHT * self.surface.pitch;
-        let remaining = self.surface.height.saturating_sub(CELL_HEIGHT);
-        // SAFETY: Both ranges are within the validated framebuffer mapping.
-        // The ranges overlap, so ptr::copy (memmove semantics) is required.
-        // The framebuffer is ordinary mapped RAM, not an I/O register window;
-        // using the optimized bulk copy avoids a slow byte-by-byte scan down
-        // the display during every terminal scroll.
+        let pitch = self.surface.pitch;
+        let first_source_row = CELL_HEIGHT;
+        let rows_to_move = self.surface.height.saturating_sub(CELL_HEIGHT);
+        // Move one complete physical framebuffer row at a time. Every offset
+        // is derived from Limine's pitch, including any alignment padding.
+        // Forward order is safe because each source row is below its target.
+        // SAFETY: Console::new validated the full pitch * height mapping.
         unsafe {
-            core::ptr::copy(
-                self.surface.address.add(scroll_bytes),
-                self.surface.address,
-                remaining * self.surface.pitch,
-            );
+            for destination_row in 0..rows_to_move {
+                let source_offset = (destination_row + first_source_row) * pitch;
+                let destination_offset = destination_row * pitch;
+                core::ptr::copy_nonoverlapping(
+                    self.surface.address.add(source_offset),
+                    self.surface.address.add(destination_offset),
+                    pitch,
+                );
+            }
         }
         // Clear the newly exposed bottom rows.
         // SAFETY: The rectangle is clipped to the framebuffer bounds.
