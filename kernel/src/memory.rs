@@ -1,8 +1,192 @@
 use limine::memory_map::{Entry, EntryType};
 
 pub const PAGE_SIZE: u64 = 4096;
+pub const BITMAP_WORDS: usize = 16_384;
 const LOW_MEMORY_RESERVED_END: u64 = 0x10_0000;
 const FRAME_TEST_PATTERN: u64 = 0x4B41_4E47_4146_524D;
+
+/// Bitmap-backed physical frame allocator.
+///
+/// One bit represents one 4 KiB physical frame. A set bit means unavailable;
+/// a clear bit means free. The fixed bitmap supplied by the caller determines
+/// the maximum physical address range that can be managed.
+pub struct BitmapFrameAllocator<'a> {
+    entries: &'a [&'a Entry],
+    bitmap: &'a mut [u64],
+    next_hint: usize,
+    free_frames: u64,
+    managed_frames: u64,
+    ignored_usable_frames: u64,
+}
+
+impl<'a> BitmapFrameAllocator<'a> {
+    /// Initialise the bitmap from Limine's usable memory map.
+    ///
+    /// The first MiB is reserved. Region boundaries are rounded inward to
+    /// complete pages. Memory outside the supplied bitmap is left unmanaged.
+    pub fn new(entries: &'a [&'a Entry], bitmap: &'a mut [u64]) -> Self {
+        bitmap.fill(u64::MAX);
+        let mut allocator = Self {
+            entries,
+            bitmap,
+            next_hint: 0,
+            free_frames: 0,
+            managed_frames: 0,
+            ignored_usable_frames: 0,
+        };
+
+        for entry in entries {
+            if entry.entry_type != EntryType::USABLE {
+                continue;
+            }
+            let Some(region_end) = entry.base.checked_add(entry.length) else {
+                continue;
+            };
+            let region_start = entry.base.max(LOW_MEMORY_RESERVED_END);
+            let Some(rounded_start) = region_start.checked_add(PAGE_SIZE - 1) else {
+                continue;
+            };
+            let mut frame = rounded_start & !(PAGE_SIZE - 1);
+            let end = region_end & !(PAGE_SIZE - 1);
+
+            while frame < end {
+                let index = (frame / PAGE_SIZE) as u128;
+                if index < (allocator.bitmap.len() as u128) * 64 {
+                    let index = index as usize;
+                    let mask = 1_u64 << (index % 64);
+                    let word = &mut allocator.bitmap[index / 64];
+                    if *word & mask != 0 {
+                        *word &= !mask;
+                        allocator.free_frames += 1;
+                        allocator.managed_frames += 1;
+                    }
+                } else {
+                    allocator.ignored_usable_frames =
+                        allocator.ignored_usable_frames.saturating_add(1);
+                }
+                let Some(next) = frame.checked_add(PAGE_SIZE) else {
+                    break;
+                };
+                frame = next;
+            }
+        }
+        allocator
+    }
+
+    /// Allocate one free frame, returning its physical address.
+    pub fn allocate_frame(&mut self) -> Option<u64> {
+        let capacity = self.bitmap.len().checked_mul(64)?;
+        if self.free_frames == 0 || capacity == 0 {
+            return None;
+        }
+
+        for offset in 0..capacity {
+            let index = (self.next_hint + offset) % capacity;
+            let mask = 1_u64 << (index % 64);
+            let word = &mut self.bitmap[index / 64];
+            if *word & mask == 0 {
+                *word |= mask;
+                self.free_frames -= 1;
+                self.next_hint = (index + 1) % capacity;
+                return (index as u64).checked_mul(PAGE_SIZE);
+            }
+        }
+        None
+    }
+
+    /// Allocate a physically contiguous run of frames.
+    ///
+    /// Returns the physical address of the first frame. The caller must
+    /// deallocate every frame in the run individually when finished.
+    pub fn allocate_contiguous(&mut self, count: usize) -> Option<u64> {
+        let capacity = self.bitmap.len().checked_mul(64)?;
+        if count == 0 || count > capacity || self.free_frames < count as u64 {
+            return None;
+        }
+
+        for offset in 0..capacity {
+            let start = (self.next_hint + offset) % capacity;
+            if start + count > capacity {
+                continue;
+            }
+            let available = (start..start + count).all(|index| {
+                self.bitmap[index / 64] & (1_u64 << (index % 64)) == 0
+            });
+            if !available {
+                continue;
+            }
+
+            for index in start..start + count {
+                self.bitmap[index / 64] |= 1_u64 << (index % 64);
+            }
+            self.free_frames -= count as u64;
+            self.next_hint = (start + count) % capacity;
+            return (start as u64).checked_mul(PAGE_SIZE);
+        }
+        None
+    }
+
+    /// Return one frame to the allocator.
+    ///
+    /// # Safety
+    /// The frame must be page-aligned, managed by this allocator, currently
+    /// allocated, and no longer in use. It must be returned exactly once.
+    pub unsafe fn deallocate_frame(&mut self, frame: u64) -> bool {
+        if !self.is_managed_frame(frame) || self.free_frames == u64::MAX {
+            return false;
+        }
+        let index = (frame / PAGE_SIZE) as usize;
+        let mask = 1_u64 << (index % 64);
+        let word = &mut self.bitmap[index / 64];
+        if *word & mask == 0 {
+            return false;
+        }
+        *word &= !mask;
+        self.free_frames += 1;
+        if index < self.next_hint {
+            self.next_hint = index;
+        }
+        true
+    }
+
+    pub const fn free_frame_count(&self) -> u64 {
+        self.free_frames
+    }
+
+    pub const fn managed_frame_count(&self) -> u64 {
+        self.managed_frames
+    }
+
+    pub const fn ignored_usable_frame_count(&self) -> u64 {
+        self.ignored_usable_frames
+    }
+
+    pub fn capacity_frames(&self) -> usize {
+        self.bitmap.len().saturating_mul(64)
+    }
+
+    fn is_managed_frame(&self, frame: u64) -> bool {
+        if frame < LOW_MEMORY_RESERVED_END || frame % PAGE_SIZE != 0 {
+            return false;
+        }
+        let index = (frame / PAGE_SIZE) as u128;
+        if index >= (self.bitmap.len() as u128) * 64 {
+            return false;
+        }
+        self.entries.iter().any(|entry| {
+            if entry.entry_type != EntryType::USABLE {
+                return false;
+            }
+            let Some(end) = entry.base.checked_add(entry.length) else {
+                return false;
+            };
+            frame >= entry.base.max(LOW_MEMORY_RESERVED_END)
+                && frame
+                    .checked_add(PAGE_SIZE)
+                    .is_some_and(|frame_end| frame_end <= end)
+        })
+    }
+}
 
 pub fn physical_to_virtual(physical_address: u64, hhdm_offset: u64) -> Option<u64> {
     physical_address.checked_add(hhdm_offset)
@@ -28,143 +212,4 @@ pub unsafe fn zero_and_verify_frame(virtual_address: u64) -> bool {
     // SAFETY: Restore the tested word to zero before handing the frame onward.
     unsafe { test_ptr.write_volatile(0) };
     observed == FRAME_TEST_PATTERN
-}
-
-/// Intrusive singly linked list of free 4 KiB physical frames.
-///
-/// The first eight bytes of each free frame store the physical address of the
-/// next free frame. Zero marks the end of the list. This needs no kernel heap.
-pub struct FrameAllocator<'a> {
-    entries: &'a [&'a Entry],
-    hhdm_offset: u64,
-    head: u64,
-    free_frames: u64,
-}
-
-impl<'a> FrameAllocator<'a> {
-    /// Build the free list from complete frames in Limine USABLE regions.
-    ///
-    /// The first MiB is excluded. Region boundaries are rounded inward to
-    /// complete pages. The constructor writes a link into every free frame.
-    ///
-    /// # Safety
-    /// hhdm_offset must map all supplied USABLE frames to writable memory.
-    /// The memory map must remain valid for this allocator's lifetime.
-    pub unsafe fn new(entries: &'a [&'a Entry], hhdm_offset: u64) -> Self {
-        let mut allocator = Self {
-            entries,
-            hhdm_offset,
-            head: 0,
-            free_frames: 0,
-        };
-        for entry in entries {
-            if entry.entry_type != EntryType::USABLE {
-                continue;
-            }
-            let Some(region_end) = entry.base.checked_add(entry.length) else {
-                continue;
-            };
-            let region_start = entry.base.max(LOW_MEMORY_RESERVED_END);
-            let Some(rounded_start) = region_start.checked_add(PAGE_SIZE - 1) else {
-                continue;
-            };
-            let mut frame = rounded_start & !(PAGE_SIZE - 1);
-            let end = region_end & !(PAGE_SIZE - 1);
-            while frame < end {
-                // SAFETY: The constructor contract guarantees writable HHDM
-                // mappings and exclusive ownership of every USABLE frame.
-                if unsafe { allocator.write_next(frame, allocator.head) } {
-                    allocator.head = frame;
-                    allocator.free_frames = allocator.free_frames.saturating_add(1);
-                }
-                let Some(next) = frame.checked_add(PAGE_SIZE) else {
-                    break;
-                };
-                frame = next;
-            }
-        }
-        allocator
-    }
-
-    /// Pop and return one free frame, or None when the list is empty.
-    pub fn allocate_frame(&mut self) -> Option<u64> {
-        if self.head == 0 {
-            return None;
-        }
-        let frame = self.head;
-        let next = self.read_next(frame)?;
-        self.head = next;
-        self.free_frames = self.free_frames.saturating_sub(1);
-        Some(frame)
-    }
-
-    /// Push a previously allocated frame onto the free list.
-    ///
-    /// # Safety
-    /// frame must be page-aligned, belong to a managed USABLE region, be
-    /// currently allocated, and no longer be used by any other subsystem.
-    /// It must not already be present in the free list.
-    pub unsafe fn deallocate_frame(&mut self, frame: u64) -> bool {
-        if !self.is_managed_frame(frame) || self.free_frames == u64::MAX {
-            return false;
-        }
-        // SAFETY: The caller guarantees exclusive ownership of this frame.
-        if !unsafe { self.write_next(frame, self.head) } {
-            return false;
-        }
-        self.head = frame;
-        self.free_frames += 1;
-        true
-    }
-
-    pub const fn free_frame_count(&self) -> u64 {
-        self.free_frames
-    }
-
-    fn is_managed_frame(&self, frame: u64) -> bool {
-        if frame < LOW_MEMORY_RESERVED_END || frame % PAGE_SIZE != 0 {
-            return false;
-        }
-        self.entries.iter().any(|entry| {
-            if entry.entry_type != EntryType::USABLE {
-                return false;
-            }
-            let Some(end) = entry.base.checked_add(entry.length) else {
-                return false;
-            };
-            let start = entry.base.max(LOW_MEMORY_RESERVED_END);
-            frame >= start
-                && frame
-                    .checked_add(PAGE_SIZE)
-                    .is_some_and(|frame_end| frame_end <= end)
-        })
-    }
-
-    /// # Safety
-    /// frame must be a writable, exclusively owned HHDM frame.
-    unsafe fn write_next(&self, frame: u64, next: u64) -> bool {
-        let Some(virtual_address) = physical_to_virtual(frame, self.hhdm_offset) else {
-            return false;
-        };
-        let Ok(address) = usize::try_from(virtual_address) else {
-            return false;
-        };
-        if address % core::mem::align_of::<u64>() != 0 {
-            return false;
-        }
-        // SAFETY: The caller guarantees a writable aligned word in this frame.
-        unsafe { (address as *mut u64).write_volatile(next) };
-        true
-    }
-
-    fn read_next(&self, frame: u64) -> Option<u64> {
-        let virtual_address = physical_to_virtual(frame, self.hhdm_offset)?;
-        let address = usize::try_from(virtual_address).ok()?;
-        if address % core::mem::align_of::<u64>() != 0 {
-            return None;
-        }
-        // SAFETY: The head is a frame inserted by this allocator and remains
-        // mapped through the HHDM; its first word stores the next physical frame.
-        Some(unsafe { (address as *const u64).read_volatile() })
-    }
 }

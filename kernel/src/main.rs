@@ -21,6 +21,8 @@ mod pit;
 mod rtc;
 mod shell;
 
+static mut FRAME_BITMAP: [u64; memory::BITMAP_WORDS] = [u64::MAX; memory::BITMAP_WORDS];
+
 #[used]
 #[link_section = ".limine_requests_start"]
 static REQUESTS_START_MARKER: RequestsStartMarker = RequestsStartMarker::new();
@@ -139,14 +141,34 @@ fn report_memory_map() {
     let hhdm_offset = hhdm.offset();
     let _ = writeln!(serial::Writer, "HHDM offset: 0x{:016x}", hhdm_offset);
 
-    // SAFETY: Limine USABLE entries exclude the kernel, modules and
-    // bootloader-reclaimable data. Limine's HHDM maps reported physical RAM.
-    let mut allocator = unsafe { memory::FrameAllocator::new(entries, hhdm_offset) };
+    // The bitmap lives in the kernel image's .bss, so it is not carved out
+    // of the physical frames that it manages. It tracks physical addresses
+    // below 4 GiB; higher usable frames are counted and reported as ignored.
+    // SAFETY: This is the sole initialisation site and the allocator remains
+    // local to this boot diagnostic routine.
+    let bitmap = unsafe {
+        core::slice::from_raw_parts_mut(
+            core::ptr::addr_of_mut!(FRAME_BITMAP).cast::<u64>(),
+            memory::BITMAP_WORDS,
+        )
+    };
+    let mut allocator = memory::BitmapFrameAllocator::new(entries, bitmap);
     let initial_free_frames = allocator.free_frame_count();
     let _ = writeln!(
         serial::Writer,
-        "Physical free-list allocator: {} frames ready",
+        "Physical bitmap allocator: {} frames ready",
         initial_free_frames
+    );
+    let _ = writeln!(
+        serial::Writer,
+        "Physical bitmap capacity: {} frames ({} GiB)",
+        allocator.capacity_frames(),
+        (allocator.capacity_frames() as u64 * memory::PAGE_SIZE) / (1024 * 1024 * 1024)
+    );
+    let _ = writeln!(
+        serial::Writer,
+        "Usable frames above bitmap limit: {}",
+        allocator.ignored_usable_frame_count()
     );
 
     let Some(frame_one) = allocator.allocate_frame() else {
@@ -200,32 +222,56 @@ fn report_memory_map() {
         }
     }
 
-    // Return the middle frame, then verify that the next allocation reuses it.
+    // Return the middle frame, reject a duplicate return, then verify that
+    // the next-fit cursor can find and reuse the released frame.
     // SAFETY: frame_two was allocated above and is not used elsewhere.
     let returned = unsafe { allocator.deallocate_frame(frame_two) };
+    // SAFETY: The second return is an intentional double-free rejection test.
+    let double_free_rejected = !unsafe { allocator.deallocate_frame(frame_two) };
     let reused = allocator.allocate_frame();
-    let reuse_passed = returned && reused == Some(frame_two);
+    let reuse_passed = returned && double_free_rejected && reused == Some(frame_two);
     let _ = writeln!(
         serial::Writer,
-        "Frame deallocation and reuse test: {}",
+        "Frame deallocation, double-free guard and reuse test: {}",
         if reuse_passed { "passed" } else { "FAILED" }
     );
 
-    // Return each still-allocated diagnostic frame exactly once.
-    // SAFETY: frame_one and frame_three remain allocated and exclusively owned.
-    let returned_one = unsafe { allocator.deallocate_frame(frame_one) };
-    let returned_three = unsafe { allocator.deallocate_frame(frame_three) };
-    let returned_reused = if let Some(frame) = reused {
-        if frame == frame_two {
-            true
-        } else {
-            // SAFETY: This frame was just popped from the allocator above.
-            unsafe { allocator.deallocate_frame(frame) }
-        }
+    let contiguous = allocator.allocate_contiguous(3);
+    let contiguous_passed = contiguous.is_some_and(|first| {
+        let second = first.checked_add(memory::PAGE_SIZE);
+        let third = first.checked_add(memory::PAGE_SIZE * 2);
+        second.is_some()
+            && third.is_some()
+            && second.unwrap() - first == memory::PAGE_SIZE
+            && third.unwrap() - second.unwrap() == memory::PAGE_SIZE
+    });
+    let _ = writeln!(
+        serial::Writer,
+        "Bitmap contiguous allocation test: {}",
+        if contiguous_passed { "passed" } else { "FAILED" }
+    );
+
+    // Return the contiguous run and all remaining diagnostic frames exactly once.
+    let returned_run = if let Some(first) = contiguous {
+        // SAFETY: All three frames were allocated as one exclusive contiguous run.
+        let first_ok = unsafe { allocator.deallocate_frame(first) };
+        // SAFETY: The next two frames belong to the same allocated run.
+        let second_ok = unsafe { allocator.deallocate_frame(first + memory::PAGE_SIZE) };
+        // SAFETY: The final frame belongs to the same allocated run.
+        let third_ok = unsafe { allocator.deallocate_frame(first + memory::PAGE_SIZE * 2) };
+        first_ok && second_ok && third_ok
     } else {
         false
     };
-    let integrity = returned_one && returned_three && returned_reused;
+    // SAFETY: These diagnostic frames remain allocated and exclusively owned.
+    let returned_one = unsafe { allocator.deallocate_frame(frame_one) };
+    // SAFETY: frame_three remains allocated and exclusively owned.
+    let returned_three = unsafe { allocator.deallocate_frame(frame_three) };
+    // SAFETY: The reused frame was just allocated above.
+    let returned_reused = reused.is_some_and(|frame| unsafe {
+        allocator.deallocate_frame(frame)
+    });
+    let integrity = returned_one && returned_three && returned_reused && returned_run && contiguous_passed;
     let _ = writeln!(
         serial::Writer,
         "Frame allocator integrity test: {}",
