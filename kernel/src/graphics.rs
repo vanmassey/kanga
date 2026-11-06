@@ -283,7 +283,7 @@ impl Console {
         let x = self.column * CELL_WIDTH;
         let y = self.row * CELL_HEIGHT;
         // SAFETY: The cursor remains within the console grid.
-        unsafe { self.surface.rect(x, y, CELL_WIDTH, CELL_HEIGHT, BACKGROUND) };
+        unsafe { self.surface.rect(x, y, CELL_WIDTH, CELL_HEIGHT, self.ansi.background) };
         self.draw_prompt_cursor();
     }
 
@@ -310,7 +310,7 @@ impl Console {
                 self.surface.height.saturating_sub(CELL_HEIGHT),
                 self.surface.width,
                 CELL_HEIGHT,
-                BACKGROUND,
+                self.ansi.background,
             );
         }
     }
