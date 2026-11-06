@@ -82,6 +82,9 @@ jobs:
           grep -F "Interrupts: keyboard IRQ1 enabled" build/serial.log
           grep -F "Memory map entries:" build/serial.log
           grep -F "Physical frame allocator: allocated frame at" build/serial.log
+          grep -F "Frame allocation uniqueness test: passed" build/serial.log
+          grep -F "Frame deallocation and reuse test: passed" build/serial.log
+          grep -F "Frame allocator integrity test: passed" build/serial.log
           grep -F "Allocated frame virtual address:" build/serial.log
           grep -F "Frame memory test: passed" build/serial.log
           grep -F "Display: classic monochrome text console" build/serial.log
