@@ -17,6 +17,8 @@ jobs:
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends build-essential xorriso qemu-system-x86 socat
       - name: Check shell scripts
         run: sh -n scripts/build-iso.sh scripts/check.sh scripts/run-qemu.sh
+      - name: Test host-side utilities
+        run: python3 -m unittest discover -s tests -v
       - name: Check formatting
         run: cargo fmt --all -- --check
       - name: Build bootable image
