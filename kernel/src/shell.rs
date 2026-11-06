@@ -146,7 +146,7 @@ fn execute(command_line: &[u8], console: Option<&mut Console>, filesystem: &mut 
         let _ = writeln!(output, "Bootloader: Limine");
         let _ = writeln!(output, "Kernel mode: freestanding, no_std");
         let _ = writeln!(output, "Input: legacy PS/2 keyboard, interrupt-driven IRQ1");
-        let _ = writeln!(output, "Display: monochrome framebuffer text console");
+        let _ = writeln!(output, "Display: ANSI colour framebuffer text console");
     } else if command.eq_ignore_ascii_case(b"time") {
         let ticks = crate::pit::ticks();
         let tenths = crate::pit::elapsed_tenths();
