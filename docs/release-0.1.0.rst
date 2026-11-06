@@ -1,0 +1,102 @@
+Kanga OS 0.1.0
+==============
+
+First experimental release
+--------------------------
+
+Kanga 0.1.0 is the first public milestone of an independently developed,
+x86-64 operating system written in Rust. It is an early, experimental
+kernel intended for development, testing and learning. It is not a
+general-purpose desktop operating system.
+
+The project boots through Limine and provides a text-mode console on an
+RGB framebuffer. The release focuses on establishing a reliable boot
+path, basic hardware interaction, diagnostics and a small set of
+built-in kernel services.
+
+Highlights
+----------
+
+* BIOS and UEFI boot support through Limine.
+* Serial-port diagnostics for boot and runtime messages.
+* Framebuffer text console with an 8-by-16 VGA-compatible font.
+* ANSI 16-colour text output.
+* Keyboard input through the PS/2 keyboard interrupt.
+* Scrollback history with optimised framebuffer scrolling.
+* CPU exception handling and legacy PIC interrupt support.
+* Programmable interval timer support at 100 Hz.
+* CMOS real-time clock date and time reading.
+* Physical memory map reporting and a bitmap frame allocator for
+  4 KiB frames below the 4 GiB limit.
+* KangaFS, an in-memory filesystem.
+* Built-in commands for help, system information, memory information,
+  time, date, uptime, calendar display and basic filesystem operations.
+
+Built-in commands
+-----------------
+
+The command interface includes:
+
+* ``HELP`` - list available commands.
+* ``DIR`` - list files in the in-memory filesystem.
+* ``CLS`` - clear the console.
+* ``VER`` - display the Kanga version.
+* ``ECHO`` - print text.
+* ``INFO`` - display system information.
+* ``MEM`` - display memory information.
+* ``TIME``, ``DATE``, ``CLOCK`` and ``RTC`` - display clock information.
+* ``UPTIME`` - display elapsed system time.
+* ``ABOUT`` - display project and licence information.
+* ``CAL`` - display a calendar.
+* ``FSINFO`` - display filesystem information.
+* ``WRITE``, ``TYPE`` and ``DEL`` - create, read and delete in-memory files.
+* ``HALT`` - halt the processor.
+
+Testing
+-------
+
+The 0.1.0 development build has been built and boot-tested in QEMU by
+the repository's GitHub Actions workflow. The automated workflow checks
+formatting, builds a bootable ISO, exercises keyboard input and captures
+the framebuffer and serial log as artifacts.
+
+A successful QEMU run is useful evidence that the tested virtual
+hardware configuration works. It does not prove compatibility with
+physical computers or every firmware and graphics configuration.
+
+Known limitations
+-----------------
+
+This release is deliberately small. The following features are not yet
+implemented or should not be considered production-ready:
+
+* No user mode, system-call interface, process scheduler or multitasking.
+* No general-purpose virtual memory manager or kernel heap.
+* KangaFS is held in RAM; files do not persist across a reboot.
+* The physical frame allocator is limited to memory below 4 GiB.
+* No PCI device discovery, USB stack, networking or desktop environment.
+* Interrupt handling is still limited; the legacy PIC is used and the
+  spin lock is not IRQ-safe.
+* QEMU testing does not establish broad physical-hardware compatibility.
+
+Licence
+-------
+
+Kanga is distributed under the GNU General Public License, version 2.
+See the repository's ``LICENSE`` file for the full licence text.
+
+This software is provided without warranty. See the licence for details.
+
+Getting started
+---------------
+
+Build and boot instructions are maintained in the repository's
+``README.md``. The recommended first test is to build the ISO and boot
+it in QEMU before attempting to use it on physical hardware.
+
+Release status
+--------------
+
+Version 0.1.0 is an experimental milestone. Users should expect missing
+features, limitations and possible bugs. Back up important data and do
+not rely on Kanga for critical workloads.
