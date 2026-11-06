@@ -343,13 +343,51 @@ impl Console {
         let live_top = self.line.saturating_sub(self.row);
         let oldest = self.line.saturating_sub(SCROLLBACK_LINES - 1);
         let maximum = live_top.saturating_sub(oldest);
-        self.view_offset = self.view_offset.saturating_add(1).min(maximum);
-        self.redraw();
+        let next_offset = self.view_offset.saturating_add(1).min(maximum);
+        if next_offset == self.view_offset {
+            return;
+        }
+        self.view_offset = next_offset;
+
+        // Move the existing image down by one text row in one overlapping-safe
+        // operation, then render only the newly exposed top row.
+        let pitch = self.surface.pitch;
+        let bytes_to_move = self.surface.height.saturating_sub(CELL_HEIGHT) * pitch;
+        // SAFETY: Console::new validated pitch * height; ptr::copy permits overlap.
+        unsafe {
+            core::ptr::copy(
+                self.surface.address,
+                self.surface.address.add(CELL_HEIGHT * pitch),
+                bytes_to_move,
+            );
+        }
+        let first_line = live_top.saturating_sub(self.view_offset);
+        self.draw_logical_row(0, first_line);
     }
 
     pub fn scroll_down(&mut self) {
-        self.view_offset = self.view_offset.saturating_sub(1);
-        self.redraw();
+        let next_offset = self.view_offset.saturating_sub(1);
+        if next_offset == self.view_offset {
+            return;
+        }
+        self.view_offset = next_offset;
+
+        // Move the existing image up by one text row, then render only the
+        // newly exposed bottom row.
+        let pitch = self.surface.pitch;
+        let bytes_to_move = self.surface.height.saturating_sub(CELL_HEIGHT) * pitch;
+        // SAFETY: Console::new validated pitch * height; ptr::copy permits overlap.
+        unsafe {
+            core::ptr::copy(
+                self.surface.address.add(CELL_HEIGHT * pitch),
+                self.surface.address,
+                bytes_to_move,
+            );
+        }
+        let live_top = self.line.saturating_sub(self.row);
+        let first_line = live_top.saturating_sub(self.view_offset);
+        self.draw_logical_row(self.rows - 1, first_line + self.rows - 1);
+        self.draw_prompt_cursor();
     }
 
     pub fn follow_live(&mut self) {
@@ -380,6 +418,20 @@ impl Console {
             }
         }
         self.draw_prompt_cursor();
+    }
+
+    fn draw_logical_row(&mut self, screen_row: usize, logical_line: usize) {
+        let line_is_available =
+            logical_line <= self.line && self.line - logical_line < SCROLLBACK_LINES;
+        for column in 0..self.columns {
+            let cell = if line_is_available {
+                // SAFETY: Both coordinates are bounded by the fixed ring.
+                unsafe { read_cell(logical_line, column) }
+            } else {
+                Cell::EMPTY
+            };
+            self.draw_cell(column, screen_row, cell);
+        }
     }
 
     fn draw_cell(&mut self, column: usize, row: usize, cell: Cell) {
