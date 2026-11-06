@@ -364,8 +364,8 @@ impl Console {
         let first_line = live_top.saturating_sub(self.view_offset);
         for screen_row in 0..self.rows {
             let logical_line = first_line.saturating_add(screen_row);
-            let line_is_available = logical_line <= self.line
-                && self.line - logical_line < SCROLLBACK_LINES;
+            let line_is_available =
+                logical_line <= self.line && self.line - logical_line < SCROLLBACK_LINES;
             for column in 0..self.columns {
                 let cell = if line_is_available {
                     // SAFETY: Both coordinates are bounded by the fixed ring.
