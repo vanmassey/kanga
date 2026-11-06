@@ -123,7 +123,11 @@ fn report_memory_map() {
     }
     let _ = writeln!(serial::Writer, "Memory map entries: {}", entries.len());
     let _ = writeln!(serial::Writer, "Usable memory regions: {}", usable_regions);
-    let _ = writeln!(serial::Writer, "Usable memory: {} MiB", usable_bytes / (1024 * 1024));
+    let _ = writeln!(
+        serial::Writer,
+        "Usable memory: {} MiB",
+        usable_bytes / (1024 * 1024)
+    );
 
     let Some(hhdm) = HHDM_REQUEST.get_response() else {
         let _ = writeln!(serial::Writer, "HHDM: no response from bootloader");
@@ -136,33 +140,61 @@ fn report_memory_map() {
     // bootloader-reclaimable data. Limine's HHDM maps reported physical RAM.
     let mut allocator = unsafe { memory::FrameAllocator::new(entries, hhdm_offset) };
     let initial_free_frames = allocator.free_frame_count();
-    let _ = writeln!(serial::Writer, "Physical free-list allocator: {} frames ready", initial_free_frames);
+    let _ = writeln!(
+        serial::Writer,
+        "Physical free-list allocator: {} frames ready",
+        initial_free_frames
+    );
 
     let Some(frame_one) = allocator.allocate_frame() else {
         let _ = writeln!(serial::Writer, "Physical frame allocator: no usable frames");
         return;
     };
     let Some(frame_two) = allocator.allocate_frame() else {
-        let _ = writeln!(serial::Writer, "Physical frame allocator: second allocation failed");
+        let _ = writeln!(
+            serial::Writer,
+            "Physical frame allocator: second allocation failed"
+        );
         return;
     };
     let Some(frame_three) = allocator.allocate_frame() else {
-        let _ = writeln!(serial::Writer, "Physical frame allocator: third allocation failed");
+        let _ = writeln!(
+            serial::Writer,
+            "Physical frame allocator: third allocation failed"
+        );
         return;
     };
 
-    let _ = writeln!(serial::Writer, "Physical frame allocator: allocated frame at 0x{:016x}", frame_one);
+    let _ = writeln!(
+        serial::Writer,
+        "Physical frame allocator: allocated frame at 0x{:016x}",
+        frame_one
+    );
     let unique = frame_one != frame_two && frame_one != frame_three && frame_two != frame_three;
-    let _ = writeln!(serial::Writer, "Frame allocation uniqueness test: {}", if unique { "passed" } else { "FAILED" });
+    let _ = writeln!(
+        serial::Writer,
+        "Frame allocation uniqueness test: {}",
+        if unique { "passed" } else { "FAILED" }
+    );
 
     match memory::physical_to_virtual(frame_one, hhdm_offset) {
         Some(virtual_address) => {
-            let _ = writeln!(serial::Writer, "Allocated frame virtual address: 0x{:016x}", virtual_address);
+            let _ = writeln!(
+                serial::Writer,
+                "Allocated frame virtual address: 0x{:016x}",
+                virtual_address
+            );
             // SAFETY: frame_one is exclusively owned by this diagnostic routine.
             let accessible = unsafe { memory::zero_and_verify_frame(virtual_address) };
-            let _ = writeln!(serial::Writer, "Frame memory test: {}", if accessible { "passed" } else { "FAILED" });
+            let _ = writeln!(
+                serial::Writer,
+                "Frame memory test: {}",
+                if accessible { "passed" } else { "FAILED" }
+            );
         }
-        None => { let _ = writeln!(serial::Writer, "HHDM address conversion overflowed"); }
+        None => {
+            let _ = writeln!(serial::Writer, "HHDM address conversion overflowed");
+        }
     }
 
     // Return the middle frame, then verify that the next allocation reuses it.
@@ -170,21 +202,37 @@ fn report_memory_map() {
     let returned = unsafe { allocator.deallocate_frame(frame_two) };
     let reused = allocator.allocate_frame();
     let reuse_passed = returned && reused == Some(frame_two);
-    let _ = writeln!(serial::Writer, "Frame deallocation and reuse test: {}", if reuse_passed { "passed" } else { "FAILED" });
+    let _ = writeln!(
+        serial::Writer,
+        "Frame deallocation and reuse test: {}",
+        if reuse_passed { "passed" } else { "FAILED" }
+    );
 
     // Return each still-allocated diagnostic frame exactly once.
     // SAFETY: frame_one and frame_three remain allocated and exclusively owned.
     let returned_one = unsafe { allocator.deallocate_frame(frame_one) };
     let returned_three = unsafe { allocator.deallocate_frame(frame_three) };
     let returned_reused = if let Some(frame) = reused {
-        if frame == frame_two { true } else {
+        if frame == frame_two {
+            true
+        } else {
             // SAFETY: This frame was just popped from the allocator above.
             unsafe { allocator.deallocate_frame(frame) }
         }
-    } else { false };
+    } else {
+        false
+    };
     let integrity = returned_one && returned_three && returned_reused;
-    let _ = writeln!(serial::Writer, "Frame allocator integrity test: {}", if integrity { "passed" } else { "FAILED" });
-    let _ = writeln!(serial::Writer, "Physical free-list allocator: {} frames available", allocator.free_frame_count());
+    let _ = writeln!(
+        serial::Writer,
+        "Frame allocator integrity test: {}",
+        if integrity { "passed" } else { "FAILED" }
+    );
+    let _ = writeln!(
+        serial::Writer,
+        "Physical free-list allocator: {} frames available",
+        allocator.free_frame_count()
+    );
 }
 fn stop() -> ! {
     loop {
