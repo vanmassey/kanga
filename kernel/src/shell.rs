@@ -2,6 +2,7 @@
 
 use core::fmt::{self, Write};
 
+use crate::filesystem::{self, FileSystem};
 use crate::graphics::Console;
 use crate::keyboard::{self, Key};
 
@@ -29,6 +30,7 @@ pub fn run(mut console: Option<Console>) -> ! {
         let _ = writeln!(output, "Setting up interrupts...... [ OK ]");
         let _ = writeln!(output, "Initialising keyboard...... [ OK ]");
         let _ = writeln!(output, "Starting command shell..... [ OK ]");
+        let _ = writeln!(output, "KangaFS RAM filesystem..... [ OK ]");
         let _ = writeln!(output);
         let _ = writeln!(output, "Type HELP for a list of commands.");
         let _ = writeln!(output);
@@ -37,6 +39,7 @@ pub fn run(mut console: Option<Console>) -> ! {
 
     let mut line = [0_u8; LINE_CAPACITY];
     let mut length = 0_usize;
+    let mut filesystem = FileSystem::new();
 
     loop {
         if let Some(key) = keyboard::poll_key() {
@@ -59,7 +62,7 @@ pub fn run(mut console: Option<Console>) -> ! {
                         let mut output = Output(console.as_mut());
                         let _ = writeln!(output);
                     }
-                    execute(&line[..length], console.as_mut());
+                    execute(&line[..length], console.as_mut(), &mut filesystem);
                     length = 0;
                     let mut output = Output(console.as_mut());
                     let _ = write!(output, "Kanga> ");
@@ -75,7 +78,7 @@ pub fn run(mut console: Option<Console>) -> ! {
     }
 }
 
-fn execute(command_line: &[u8], console: Option<&mut Console>) {
+fn execute(command_line: &[u8], console: Option<&mut Console>, filesystem: &mut FileSystem) {
     let command_line = trim(command_line);
     let split = command_line
         .iter()
@@ -91,10 +94,14 @@ fn execute(command_line: &[u8], console: Option<&mut Console>) {
 
     if command.eq_ignore_ascii_case(b"help") || command == b"/?" {
         let _ = writeln!(output, "Kanga DOS-style command shell");
+        let _ = writeln!(output, "DIR       list files in KangaFS");
         let _ = writeln!(
             output,
-            "DIR       list files (requires a mounted filesystem)"
+            "WRITE     create or replace a file: WRITE name.txt text"
         );
+        let _ = writeln!(output, "TYPE      display a file: TYPE name.txt");
+        let _ = writeln!(output, "DEL       delete a file: DEL name.txt");
+        let _ = writeln!(output, "FSINFO    show KangaFS capacity and status");
         let _ = writeln!(output, "CLS       clear the screen");
         let _ = writeln!(output, "VER       display the Kanga version");
         let _ = writeln!(output, "ECHO      display a message");
@@ -102,7 +109,6 @@ fn execute(command_line: &[u8], console: Option<&mut Console>) {
         let _ = writeln!(output, "MEM       show memory support status");
         let _ = writeln!(output, "TIME      show system uptime and timer ticks");
         let _ = writeln!(output, "DATE      show the CMOS real-time clock");
-        let _ = writeln!(output, "BEEP      play a short PC speaker tone");
         let _ = writeln!(output, "UPTIME    show system uptime");
         let _ = writeln!(output, "ABOUT     show project information");
         let _ = writeln!(output, "CAL       display the current month calendar");
@@ -111,11 +117,17 @@ fn execute(command_line: &[u8], console: Option<&mut Console>) {
     } else if command.eq_ignore_ascii_case(b"dir") {
         let _ = writeln!(output, " Directory of KANGA:\\");
         let _ = writeln!(output);
-        let _ = writeln!(output, "No filesystem is mounted.");
-        let _ = writeln!(
-            output,
-            "Disk and directory support are not implemented yet."
-        );
+        let mut found = false;
+        for index in 0..filesystem.capacity() {
+            if let Some((name, size)) = filesystem.entry(index) {
+                let _ = writeln!(output, "{name:<24} {size:>4} bytes");
+                found = true;
+            }
+        }
+        if !found {
+            let _ = writeln!(output, "No files.");
+        }
+        let _ = writeln!(output, "{} file(s)", filesystem.used());
     } else if command.eq_ignore_ascii_case(b"cls") || command.eq_ignore_ascii_case(b"clear") {
         if let Some(console) = output.0.as_deref_mut() {
             console.clear();
@@ -145,7 +157,10 @@ fn execute(command_line: &[u8], console: Option<&mut Console>) {
             tenths % 10
         );
         let _ = writeln!(output, "PIT timer ticks: {ticks} (100 Hz)");
-    } else if command.eq_ignore_ascii_case(b"date") || command.eq_ignore_ascii_case(b"clock") || command.eq_ignore_ascii_case(b"rtc") {
+    } else if command.eq_ignore_ascii_case(b"date")
+        || command.eq_ignore_ascii_case(b"clock")
+        || command.eq_ignore_ascii_case(b"rtc")
+    {
         match crate::rtc::read() {
             Some(time) => {
                 let _ = writeln!(
@@ -161,14 +176,60 @@ fn execute(command_line: &[u8], console: Option<&mut Console>) {
     } else if command.eq_ignore_ascii_case(b"cal") {
         match crate::rtc::read() {
             Some(time) => print_calendar(&mut output, time.year, time.month),
-            None => { let _ = writeln!(output, "Calendar unavailable: CMOS RTC read failed."); }
+            None => {
+                let _ = writeln!(output, "Calendar unavailable: CMOS RTC read failed.");
+            }
         }
     } else if command.eq_ignore_ascii_case(b"uptime") {
         let tenths = crate::pit::elapsed_tenths();
         let _ = writeln!(output, "Uptime: {}.{:01} seconds", tenths / 10, tenths % 10);
-    } else if command.eq_ignore_ascii_case(b"beep") {
-        crate::speaker::beep();
-        let _ = writeln!(output, "PC speaker: 880 Hz tone played.");
+    } else if command.eq_ignore_ascii_case(b"write") {
+        let separator = arguments.iter().position(|byte| byte.is_ascii_whitespace());
+        let Some(separator) = separator else {
+            let _ = writeln!(output, "Usage: WRITE name.txt text");
+            return;
+        };
+        let name = &arguments[..separator];
+        let contents = trim(&arguments[separator..]);
+        match filesystem.write(name, contents) {
+            Ok(()) => {
+                let filename = core::str::from_utf8(name).unwrap_or("?");
+                let _ = writeln!(output, "Saved {filename} ({} bytes).", contents.len());
+            }
+            Err(error) => report_fs_error(&mut output, error),
+        }
+    } else if command.eq_ignore_ascii_case(b"type") {
+        match filesystem.read(arguments) {
+            Some(contents) => {
+                let text = core::str::from_utf8(contents).unwrap_or("[binary data]");
+                let _ = writeln!(output, "{text}");
+            }
+            None => {
+                let _ = writeln!(output, "File not found.");
+            }
+        }
+    } else if command.eq_ignore_ascii_case(b"del") || command.eq_ignore_ascii_case(b"delete") {
+        if filesystem.delete(arguments) {
+            let name = core::str::from_utf8(arguments).unwrap_or("?");
+            let _ = writeln!(output, "Deleted {name}.");
+        } else {
+            let _ = writeln!(output, "File not found or invalid name.");
+        }
+    } else if command.eq_ignore_ascii_case(b"fsinfo") {
+        let _ = writeln!(output, "Filesystem: KangaFS");
+        let _ = writeln!(output, "Storage: volatile kernel RAM");
+        let _ = writeln!(
+            output,
+            "Files: {}/{}",
+            filesystem.used(),
+            filesystem.capacity()
+        );
+        let _ = writeln!(
+            output,
+            "Maximum file size: {} bytes",
+            filesystem.file_capacity()
+        );
+        let _ = writeln!(output, "Data is cleared when the system reboots.");
     } else if command.eq_ignore_ascii_case(b"about") {
         let _ = writeln!(output, "Kanga is an independent x86-64 operating system.");
         let _ = writeln!(output, "Written in Rust; booted with Limine.");
@@ -194,6 +255,18 @@ fn execute(command_line: &[u8], console: Option<&mut Console>) {
     }
 }
 
+fn report_fs_error(output: &mut Output<'_>, error: filesystem::Error) {
+    let message = match error {
+        filesystem::Error::InvalidName => {
+            "Invalid filename. Use letters, numbers, dot, dash or underscore."
+        }
+        filesystem::Error::NameTooLong => "Filename is too long (24 characters maximum).",
+        filesystem::Error::FileTooLarge => "File is too large (256 bytes maximum).",
+        filesystem::Error::DirectoryFull => "KangaFS directory is full (16 files maximum).",
+    };
+    let _ = writeln!(output, "KangaFS: {message}");
+}
+
 fn trim(mut input: &[u8]) -> &[u8] {
     while input.first().is_some_and(u8::is_ascii_whitespace) {
         input = &input[1..];
@@ -206,8 +279,18 @@ fn trim(mut input: &[u8]) -> &[u8] {
 
 fn print_calendar(output: &mut Output<'_>, year: u16, month: u8) {
     const MONTHS: [&str; 12] = [
-        "January", "February", "March", "April", "May", "June",
-        "July", "August", "September", "October", "November", "December",
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
     ];
     let Some(name) = MONTHS.get(usize::from(month.saturating_sub(1))) else {
         let _ = writeln!(output, "Invalid RTC month.");

@@ -182,18 +182,17 @@ impl Console {
     fn scroll(&mut self) {
         let scroll_bytes = CELL_HEIGHT * self.surface.pitch;
         let remaining = self.surface.height.saturating_sub(CELL_HEIGHT);
-        for offset in 0..remaining * self.surface.pitch {
-            // SAFETY: Source and destination lie within the validated mapped
-            // framebuffer. Forward copying is safe because destination is
-            // below source and therefore cannot overwrite a later source byte.
-            unsafe {
-                let value = self
-                    .surface
-                    .address
-                    .add(offset + scroll_bytes)
-                    .read_volatile();
-                self.surface.address.add(offset).write_volatile(value);
-            }
+        // SAFETY: Both ranges are within the validated framebuffer mapping.
+        // The ranges overlap, so ptr::copy (memmove semantics) is required.
+        // The framebuffer is ordinary mapped RAM, not an I/O register window;
+        // using the optimized bulk copy avoids a slow byte-by-byte scan down
+        // the display during every terminal scroll.
+        unsafe {
+            core::ptr::copy(
+                self.surface.address.add(scroll_bytes),
+                self.surface.address,
+                remaining * self.surface.pitch,
+            );
         }
         // Clear the newly exposed bottom rows.
         // SAFETY: The rectangle is clipped to the framebuffer bounds.
