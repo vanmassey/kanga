@@ -60,6 +60,8 @@ jobs:
           done
           grep -F "Kanga> " build/serial.log
           sleep 1
+          printf 'screendump build/kanga-colour-screen.ppm\n' |
+            socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
 
           # Exercise the multi-line HELP output before later commands scroll it away.
           for key in h e l p ret; do
@@ -111,7 +113,8 @@ jobs:
           test -s build/kanga-screen.ppm
           test -s build/kanga-help-screen.ppm
           python3 scripts/check-framebuffer.py build/kanga-screen.ppm
-          python3 scripts/check-framebuffer.py build/kanga-help-screen.ppm --expect-ansi
+          python3 scripts/check-framebuffer.py build/kanga-help-screen.ppm
+          python3 scripts/check-framebuffer.py build/kanga-colour-screen.ppm --expect-ansi
       - name: Upload QEMU screenshot, bootable ISO and serial log
         if: always()
         uses: actions/upload-artifact@v4
@@ -122,5 +125,6 @@ jobs:
             build/serial.log
             build/kanga-screen.ppm
             build/kanga-help-screen.ppm
+            build/kanga-colour-screen.ppm
           if-no-files-found: warn
           retention-days: 7
