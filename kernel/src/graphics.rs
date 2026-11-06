@@ -4,10 +4,22 @@ const BLACK: (u8, u8, u8) = (0, 0, 0);
 const DEFAULT_FOREGROUND: (u8, u8, u8) = (192, 192, 192);
 
 const ANSI_COLOURS: [(u8, u8, u8); 16] = [
-    (0, 0, 0), (170, 0, 0), (0, 170, 0), (170, 85, 0),
-    (0, 0, 170), (170, 0, 170), (0, 170, 170), (170, 170, 170),
-    (85, 85, 85), (255, 85, 85), (85, 255, 85), (255, 255, 85),
-    (85, 85, 255), (255, 85, 255), (85, 255, 255), (255, 255, 255),
+    (0, 0, 0),
+    (170, 0, 0),
+    (0, 170, 0),
+    (170, 85, 0),
+    (0, 0, 170),
+    (170, 0, 170),
+    (0, 170, 170),
+    (170, 170, 170),
+    (85, 85, 85),
+    (255, 85, 85),
+    (85, 255, 85),
+    (255, 255, 85),
+    (85, 85, 255),
+    (255, 85, 255),
+    (85, 255, 255),
+    (255, 255, 255),
 ];
 
 #[derive(Clone, Copy)]
@@ -307,7 +319,10 @@ impl Console {
         let x = self.column * CELL_WIDTH;
         let y = self.row * CELL_HEIGHT;
         // SAFETY: The cursor remains within the console grid.
-        unsafe { self.surface.rect(x, y, CELL_WIDTH, CELL_HEIGHT, self.ansi.background) };
+        unsafe {
+            self.surface
+                .rect(x, y, CELL_WIDTH, CELL_HEIGHT, self.ansi.background)
+        };
         self.draw_prompt_cursor();
     }
 
