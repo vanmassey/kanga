@@ -280,6 +280,7 @@ impl Console {
     }
 
     pub fn write_text(&mut self, text: &str) {
+        self.erase_prompt_cursor();
         for byte in text.bytes() {
             let Some(byte) = self.ansi.feed(byte) else {
                 continue;
@@ -292,6 +293,7 @@ impl Console {
                 _ => self.put_character('?'),
             }
         }
+        self.draw_prompt_cursor();
     }
 
     fn put_character(&mut self, character: char) {
@@ -316,7 +318,6 @@ impl Console {
             }
         }
         self.column += 1;
-        self.draw_prompt_cursor();
     }
 
     fn newline(&mut self) {
@@ -326,7 +327,6 @@ impl Console {
             self.scroll();
             self.row = self.rows - 1;
         }
-        self.draw_prompt_cursor();
     }
 
     fn backspace(&mut self) {
@@ -341,7 +341,15 @@ impl Console {
             self.surface
                 .rect(x, y, CELL_WIDTH, CELL_HEIGHT, self.ansi.background)
         };
-        self.draw_prompt_cursor();
+    }
+
+    fn erase_prompt_cursor(&mut self) {
+        let x = self.column * CELL_WIDTH;
+        let y = self.row * CELL_HEIGHT + CELL_HEIGHT - 2;
+        // The cursor is drawn only in the otherwise-empty next character cell.
+        // Restore that scanline to the active background before moving it.
+        // SAFETY: Cursor coordinates are within the clipped console surface.
+        unsafe { self.surface.rect(x, y, 7, 1, self.ansi.background) };
     }
 
     fn scroll(&mut self) {
