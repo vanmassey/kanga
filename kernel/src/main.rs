@@ -253,7 +253,11 @@ fn report_memory_map() {
     let _ = writeln!(
         serial::Writer,
         "Bitmap contiguous allocation test: {}",
-        if contiguous_passed { "passed" } else { "FAILED" }
+        if contiguous_passed {
+            "passed"
+        } else {
+            "FAILED"
+        }
     );
 
     // Return the contiguous run and all remaining diagnostic frames exactly once.
@@ -277,11 +281,8 @@ fn report_memory_map() {
         // SAFETY: The reused frame was just allocated above.
         unsafe { allocator.deallocate_frame(frame) }
     });
-    let integrity = returned_one
-        && returned_three
-        && returned_reused
-        && returned_run
-        && contiguous_passed;
+    let integrity =
+        returned_one && returned_three && returned_reused && returned_run && contiguous_passed;
     let _ = writeln!(
         serial::Writer,
         "Frame allocator integrity test: {}",
