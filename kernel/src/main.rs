@@ -151,47 +151,86 @@ fn report_memory_map() {
         )
     };
     if !memory::initialise_global(entries, bitmap) {
-        let _ = writeln!(serial::Writer, "Physical frame allocator: global initialisation failed");
+        let _ = writeln!(
+            serial::Writer,
+            "Physical frame allocator: global initialisation failed"
+        );
         return;
     }
 
     let Some(()) = memory::with_global_allocator(|allocator| {
         let initial_free_frames = allocator.free_frame_count();
-        let _ = writeln!(serial::Writer, "Physical bitmap allocator: {} frames ready", initial_free_frames);
-        let _ = writeln!(serial::Writer, "Physical bitmap managed frames: {}", allocator.managed_frame_count());
+        let _ = writeln!(
+            serial::Writer,
+            "Physical bitmap allocator: {} frames ready",
+            initial_free_frames
+        );
+        let _ = writeln!(
+            serial::Writer,
+            "Physical bitmap managed frames: {}",
+            allocator.managed_frame_count()
+        );
         let _ = writeln!(
             serial::Writer,
             "Physical bitmap capacity: {} frames ({} GiB)",
             allocator.capacity_frames(),
             (allocator.capacity_frames() as u64 * memory::PAGE_SIZE) / (1024 * 1024 * 1024)
         );
-        let _ = writeln!(serial::Writer, "Usable frames above bitmap limit: {}", allocator.ignored_usable_frame_count());
+        let _ = writeln!(
+            serial::Writer,
+            "Usable frames above bitmap limit: {}",
+            allocator.ignored_usable_frame_count()
+        );
 
         let Some(frame_one) = allocator.allocate_frame() else {
             let _ = writeln!(serial::Writer, "Physical frame allocator: no usable frames");
             return;
         };
         let Some(frame_two) = allocator.allocate_frame() else {
-            let _ = writeln!(serial::Writer, "Physical frame allocator: second allocation failed");
+            let _ = writeln!(
+                serial::Writer,
+                "Physical frame allocator: second allocation failed"
+            );
             return;
         };
         let Some(frame_three) = allocator.allocate_frame() else {
-            let _ = writeln!(serial::Writer, "Physical frame allocator: third allocation failed");
+            let _ = writeln!(
+                serial::Writer,
+                "Physical frame allocator: third allocation failed"
+            );
             return;
         };
 
-        let _ = writeln!(serial::Writer, "Physical frame allocator: allocated frame at 0x{:016x}", frame_one);
+        let _ = writeln!(
+            serial::Writer,
+            "Physical frame allocator: allocated frame at 0x{:016x}",
+            frame_one
+        );
         let unique = frame_one != frame_two && frame_one != frame_three && frame_two != frame_three;
-        let _ = writeln!(serial::Writer, "Frame allocation uniqueness test: {}", if unique { "passed" } else { "FAILED" });
+        let _ = writeln!(
+            serial::Writer,
+            "Frame allocation uniqueness test: {}",
+            if unique { "passed" } else { "FAILED" }
+        );
 
         match memory::physical_to_virtual(frame_one, hhdm_offset) {
             Some(virtual_address) => {
-                let _ = writeln!(serial::Writer, "Allocated frame virtual address: 0x{:016x}", virtual_address);
+                let _ = writeln!(
+                    serial::Writer,
+                    "Allocated frame virtual address: 0x{:016x}",
+                    virtual_address
+                );
                 // SAFETY: frame_one is exclusively owned by this diagnostic.
                 let accessible = unsafe { memory::zero_and_verify_frame(virtual_address) };
-                let _ = writeln!(serial::Writer, "Frame memory test: {}", if accessible { "passed" } else { "FAILED" });
+                let _ = writeln!(
+                    serial::Writer,
+                    "Frame memory test: {}",
+                    if accessible { "passed" } else { "FAILED" }
+                );
             }
-            None => { let _ = writeln!(serial::Writer, "HHDM address conversion overflowed"); }
+            None => {
+                let _ = writeln!(serial::Writer, "HHDM address conversion overflowed");
+            }
         }
 
         // SAFETY: frame_two is allocated and unused elsewhere.
@@ -200,17 +239,30 @@ fn report_memory_map() {
         let double_free_rejected = !unsafe { allocator.deallocate_frame(frame_two) };
         let reused = allocator.allocate_frame();
         let reuse_passed = returned && double_free_rejected && reused == Some(frame_two);
-        let _ = writeln!(serial::Writer, "Frame deallocation, double-free guard and reuse test: {}", if reuse_passed { "passed" } else { "FAILED" });
+        let _ = writeln!(
+            serial::Writer,
+            "Frame deallocation, double-free guard and reuse test: {}",
+            if reuse_passed { "passed" } else { "FAILED" }
+        );
 
         let contiguous = allocator.allocate_contiguous(3);
         let contiguous_passed = contiguous.is_some_and(|first| {
             let second = first.checked_add(memory::PAGE_SIZE);
             let third = first.checked_add(memory::PAGE_SIZE * 2);
-            second.is_some() && third.is_some()
+            second.is_some()
+                && third.is_some()
                 && second.unwrap() - first == memory::PAGE_SIZE
                 && third.unwrap() - second.unwrap() == memory::PAGE_SIZE
         });
-        let _ = writeln!(serial::Writer, "Bitmap contiguous allocation test: {}", if contiguous_passed { "passed" } else { "FAILED" });
+        let _ = writeln!(
+            serial::Writer,
+            "Bitmap contiguous allocation test: {}",
+            if contiguous_passed {
+                "passed"
+            } else {
+                "FAILED"
+            }
+        );
 
         let returned_run = if let Some(first) = contiguous {
             // SAFETY: These three frames belong to the allocated contiguous run.
@@ -220,7 +272,9 @@ fn report_memory_map() {
             // SAFETY: The third frame belongs to that run.
             let c = unsafe { allocator.deallocate_frame(first + memory::PAGE_SIZE * 2) };
             a && b && c
-        } else { false };
+        } else {
+            false
+        };
         // SAFETY: frame_one and frame_three remain allocated by this diagnostic.
         let returned_one = unsafe { allocator.deallocate_frame(frame_one) };
         // SAFETY: frame_three remains allocated by this diagnostic.
@@ -229,11 +283,23 @@ fn report_memory_map() {
             // SAFETY: The reused frame was allocated above.
             unsafe { allocator.deallocate_frame(frame) }
         });
-        let integrity = returned_one && returned_three && returned_reused && returned_run && contiguous_passed;
-        let _ = writeln!(serial::Writer, "Frame allocator integrity test: {}", if integrity { "passed" } else { "FAILED" });
-        let _ = writeln!(serial::Writer, "Physical bitmap allocator: {} frames available", allocator.free_frame_count());
+        let integrity =
+            returned_one && returned_three && returned_reused && returned_run && contiguous_passed;
+        let _ = writeln!(
+            serial::Writer,
+            "Frame allocator integrity test: {}",
+            if integrity { "passed" } else { "FAILED" }
+        );
+        let _ = writeln!(
+            serial::Writer,
+            "Physical bitmap allocator: {} frames available",
+            allocator.free_frame_count()
+        );
     }) else {
-        let _ = writeln!(serial::Writer, "Physical frame allocator: global service unavailable");
+        let _ = writeln!(
+            serial::Writer,
+            "Physical frame allocator: global service unavailable"
+        );
         return;
     };
 }

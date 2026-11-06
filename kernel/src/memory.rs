@@ -213,7 +213,6 @@ pub unsafe fn zero_and_verify_frame(virtual_address: u64) -> bool {
     observed == FRAME_TEST_PATTERN
 }
 
-
 use core::cell::UnsafeCell;
 use core::sync::atomic::{AtomicBool, Ordering};
 
@@ -228,13 +227,18 @@ unsafe impl<T: Send> Sync for SpinMutex<T> {}
 
 impl<T> SpinMutex<T> {
     const fn new(value: T) -> Self {
-        Self { locked: AtomicBool::new(false), value: UnsafeCell::new(value) }
+        Self {
+            locked: AtomicBool::new(false),
+            value: UnsafeCell::new(value),
+        }
     }
 
     fn lock(&self) -> SpinMutexGuard<'_, T> {
-        while self.locked.compare_exchange_weak(
-            false, true, Ordering::Acquire, Ordering::Relaxed
-        ).is_err() {
+        while self
+            .locked
+            .compare_exchange_weak(false, true, Ordering::Acquire, Ordering::Relaxed)
+            .is_err()
+        {
             while self.locked.load(Ordering::Relaxed) {
                 core::hint::spin_loop();
             }
@@ -243,7 +247,9 @@ impl<T> SpinMutex<T> {
     }
 }
 
-struct SpinMutexGuard<'a, T> { mutex: &'a SpinMutex<T> }
+struct SpinMutexGuard<'a, T> {
+    mutex: &'a SpinMutex<T>,
+}
 
 impl<T> core::ops::Deref for SpinMutexGuard<'_, T> {
     type Target = T;
@@ -271,10 +277,7 @@ static GLOBAL_FRAME_ALLOCATOR: SpinMutex<Option<BitmapFrameAllocator<'static>>> 
 
 /// Initialise the shared allocator once. Limine's memory-map response and the
 /// static bitmap both remain valid for the lifetime of the kernel.
-pub fn initialise_global(
-    entries: &'static [&'static Entry],
-    bitmap: &'static mut [u64],
-) -> bool {
+pub fn initialise_global(entries: &'static [&'static Entry], bitmap: &'static mut [u64]) -> bool {
     let mut allocator = GLOBAL_FRAME_ALLOCATOR.lock();
     if allocator.is_some() {
         return false;

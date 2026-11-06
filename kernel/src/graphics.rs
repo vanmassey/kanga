@@ -390,8 +390,7 @@ impl Console {
             for (scanline, bits) in glyph.iter().enumerate() {
                 for pixel in 0..CELL_WIDTH {
                     if bits & (1 << (7 - pixel)) != 0 {
-                        self.surface
-                            .rect(x + pixel, y + scanline, 1, 1, foreground);
+                        self.surface.rect(x + pixel, y + scanline, 1, 1, foreground);
                     }
                 }
             }
