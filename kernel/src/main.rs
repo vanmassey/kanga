@@ -236,6 +236,7 @@ fn report_memory_map() {
         let _ = writeln!(serial::Writer, "Physical frame allocator: global service unavailable");
         return;
     };
+}
 
 fn stop() -> ! {
     loop {
