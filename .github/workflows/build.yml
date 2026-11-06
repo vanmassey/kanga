@@ -82,6 +82,11 @@ jobs:
             sleep 0.15
           done
           sleep 0.5
+          printf 'sendkey up 80\n' | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
+          sleep 0.3
+          printf 'screendump build/kanga-scrollback-screen.ppm\n' | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
+          printf 'sendkey down 80\n' | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
+          sleep 0.3
           printf 'screendump build/kanga-screen.ppm\n' | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
           sleep 0.2
           cat build/serial.log
@@ -116,8 +121,11 @@ jobs:
           ! grep -F "PC speaker" build/serial.log
           test -s build/kanga-screen.ppm
           test -s build/kanga-help-screen.ppm
+          test -s build/kanga-scrollback-screen.ppm
+          ! cmp -s build/kanga-screen.ppm build/kanga-scrollback-screen.ppm
           python3 scripts/check-framebuffer.py build/kanga-screen.ppm
           python3 scripts/check-framebuffer.py build/kanga-help-screen.ppm
+          python3 scripts/check-framebuffer.py build/kanga-scrollback-screen.ppm
           python3 scripts/check-framebuffer.py build/kanga-colour-screen.ppm --expect-ansi
       - name: Upload QEMU screenshot, bootable ISO and serial log
         if: always()
@@ -129,6 +137,7 @@ jobs:
             build/serial.log
             build/kanga-screen.ppm
             build/kanga-help-screen.ppm
+            build/kanga-scrollback-screen.ppm
             build/kanga-colour-screen.ppm
           if-no-files-found: warn
           retention-days: 7

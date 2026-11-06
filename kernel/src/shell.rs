@@ -45,6 +45,9 @@ pub fn run(mut console: Option<Console>) -> ! {
         if let Some(key) = keyboard::poll_key() {
             match key {
                 Key::Character(character) if length < LINE_CAPACITY => {
+                    if let Some(console) = console.as_mut() {
+                        console.follow_live();
+                    }
                     line[length] = character;
                     length += 1;
                     let mut output = Output(console.as_mut());
@@ -52,12 +55,18 @@ pub fn run(mut console: Option<Console>) -> ! {
                 }
                 Key::Character(_) => {}
                 Key::Backspace if length > 0 => {
+                    if let Some(console) = console.as_mut() {
+                        console.follow_live();
+                    }
                     length -= 1;
                     let mut output = Output(console.as_mut());
                     let _ = output.write_str("\x08 \x08");
                 }
                 Key::Backspace => {}
                 Key::Enter => {
+                    if let Some(console) = console.as_mut() {
+                        console.follow_live();
+                    }
                     {
                         let mut output = Output(console.as_mut());
                         let _ = writeln!(output);
@@ -66,6 +75,16 @@ pub fn run(mut console: Option<Console>) -> ! {
                     length = 0;
                     let mut output = Output(console.as_mut());
                     let _ = write!(output, "Kanga> ");
+                }
+                Key::ArrowUp => {
+                    if let Some(console) = console.as_mut() {
+                        console.scroll_up();
+                    }
+                }
+                Key::ArrowDown => {
+                    if let Some(console) = console.as_mut() {
+                        console.scroll_down();
+                    }
                 }
             }
         } else {

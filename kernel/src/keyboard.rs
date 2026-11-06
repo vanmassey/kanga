@@ -12,12 +12,15 @@ static HEAD: AtomicUsize = AtomicUsize::new(0);
 static TAIL: AtomicUsize = AtomicUsize::new(0);
 static SHIFT: AtomicBool = AtomicBool::new(false);
 static CAPS_LOCK: AtomicBool = AtomicBool::new(false);
+static EXTENDED: AtomicBool = AtomicBool::new(false);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Key {
     Character(u8),
     Backspace,
     Enter,
+    ArrowUp,
+    ArrowDown,
 }
 
 /// Called only from the IRQ1 handler; never formats text or allocates memory.
@@ -43,6 +46,20 @@ pub fn poll_key() -> Option<Key> {
 }
 
 fn translate(scancode: u8) -> Option<Key> {
+    if scancode == 0xE0 {
+        EXTENDED.store(true, Ordering::Relaxed);
+        return None;
+    }
+    if EXTENDED.swap(false, Ordering::Relaxed) {
+        if scancode & 0x80 != 0 {
+            return None;
+        }
+        return match scancode {
+            0x48 => Some(Key::ArrowUp),
+            0x50 => Some(Key::ArrowDown),
+            _ => None,
+        };
+    }
     match scancode {
         0x2A | 0x36 => {
             SHIFT.store(true, Ordering::Relaxed);
@@ -56,7 +73,7 @@ fn translate(scancode: u8) -> Option<Key> {
             CAPS_LOCK.fetch_xor(true, Ordering::Relaxed);
             return None;
         }
-        0xE0 | 0xE1 => return None,
+        0xE1 => return None,
         code if code & 0x80 != 0 => return None,
         _ => {}
     }

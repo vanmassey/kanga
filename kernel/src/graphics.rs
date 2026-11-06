@@ -215,6 +215,45 @@ use crate::font;
 
 const CELL_WIDTH: usize = 8;
 const CELL_HEIGHT: usize = 16;
+const MAX_COLUMNS: usize = 512;
+const SCROLLBACK_LINES: usize = 128;
+
+#[derive(Clone, Copy)]
+struct Cell {
+    character: u8,
+    foreground: u8,
+    background: u8,
+}
+
+impl Cell {
+    const EMPTY: Self = Self {
+        character: b' ',
+        foreground: 16,
+        background: 0,
+    };
+}
+
+// The console is single-instance; IRQ handlers never access this storage.
+static mut SCROLLBACK: [[Cell; MAX_COLUMNS]; SCROLLBACK_LINES] =
+    [[Cell::EMPTY; MAX_COLUMNS]; SCROLLBACK_LINES];
+
+fn colour_index(colour: (u8, u8, u8)) -> u8 {
+    if colour == DEFAULT_FOREGROUND {
+        return 16;
+    }
+    ANSI_COLOURS
+        .iter()
+        .position(|candidate| *candidate == colour)
+        .unwrap_or(0) as u8
+}
+
+fn indexed_colour(index: u8) -> (u8, u8, u8) {
+    if index == 16 {
+        DEFAULT_FOREGROUND
+    } else {
+        ANSI_COLOURS[index.min(15) as usize]
+    }
+}
 
 /// A small framebuffer text console. The framebuffer mapping must remain valid
 /// and exclusively writable for the lifetime of this value.
@@ -224,6 +263,8 @@ pub struct Console {
     rows: usize,
     column: usize,
     row: usize,
+    line: usize,
+    view_offset: usize,
     ansi: AnsiParser,
 }
 
@@ -259,12 +300,18 @@ impl Console {
             blue_size: framebuffer.blue_mask_size(),
             blue_shift: framebuffer.blue_mask_shift(),
         };
+        let columns = width / CELL_WIDTH;
+        if columns > MAX_COLUMNS {
+            return None;
+        }
         let mut console = Self {
             surface,
-            columns: width / CELL_WIDTH,
+            columns,
             rows: height / CELL_HEIGHT,
             column: 0,
             row: 0,
+            line: 0,
+            view_offset: 0,
             ansi: AnsiParser::new(),
         };
         console.clear();
@@ -272,11 +319,83 @@ impl Console {
     }
 
     pub fn clear(&mut self) {
-        // SAFETY: Console owns the validated live framebuffer mapping.
-        unsafe { self.surface.fill(self.ansi.background) };
         self.column = 0;
         self.row = 0;
+        self.line = 0;
+        self.view_offset = 0;
+        let blank = Cell {
+            character: b' ',
+            foreground: colour_index(self.ansi.foreground),
+            background: colour_index(self.ansi.background),
+        };
+        // SAFETY: The shell is the sole scrollback reader/writer.
+        unsafe {
+            let cells = core::ptr::addr_of_mut!(SCROLLBACK).cast::<Cell>();
+            for index in 0..(SCROLLBACK_LINES * MAX_COLUMNS) {
+                cells.add(index).write(blank);
+            }
+            self.surface.fill(self.ansi.background);
+        }
         self.draw_prompt_cursor();
+    }
+
+    pub fn scroll_up(&mut self) {
+        let live_top = self.line.saturating_sub(self.row);
+        let oldest = self.line.saturating_sub(SCROLLBACK_LINES - 1);
+        let maximum = live_top.saturating_sub(oldest);
+        self.view_offset = self.view_offset.saturating_add(1).min(maximum);
+        self.redraw();
+    }
+
+    pub fn scroll_down(&mut self) {
+        self.view_offset = self.view_offset.saturating_sub(1);
+        self.redraw();
+    }
+
+    pub fn follow_live(&mut self) {
+        if self.view_offset != 0 {
+            self.view_offset = 0;
+            self.redraw();
+        }
+    }
+
+    fn redraw(&mut self) {
+        // SAFETY: Console owns the validated framebuffer mapping.
+        unsafe { self.surface.fill(BLACK) };
+        let live_top = self.line.saturating_sub(self.row);
+        let first_line = live_top.saturating_sub(self.view_offset);
+        for screen_row in 0..self.rows {
+            let logical_line = first_line.saturating_add(screen_row);
+            if logical_line > self.line || self.line - logical_line >= SCROLLBACK_LINES {
+                continue;
+            }
+            for column in 0..self.columns {
+                // SAFETY: Both coordinates are bounded by the fixed ring.
+                let cell = unsafe { read_cell(logical_line, column) };
+                self.draw_cell(column, screen_row, cell);
+            }
+        }
+        self.draw_prompt_cursor();
+    }
+
+    fn draw_cell(&mut self, column: usize, row: usize, cell: Cell) {
+        let x = column * CELL_WIDTH;
+        let y = row * CELL_HEIGHT;
+        let foreground = indexed_colour(cell.foreground);
+        let background = indexed_colour(cell.background);
+        let glyph = font::glyph(cell.character);
+        // SAFETY: Cell coordinates are bounded by the console grid.
+        unsafe {
+            self.surface.rect(x, y, CELL_WIDTH, CELL_HEIGHT, background);
+            for (scanline, bits) in glyph.iter().enumerate() {
+                for pixel in 0..CELL_WIDTH {
+                    if bits & (1 << (7 - pixel)) != 0 {
+                        self.surface
+                            .rect(x + pixel, y + scanline, 1, 1, foreground);
+                    }
+                }
+            }
+        }
     }
 
     pub fn write_text(&mut self, text: &str) {
@@ -300,32 +419,48 @@ impl Console {
         if self.column >= self.columns {
             self.newline();
         }
-        let x = self.column * CELL_WIDTH;
-        let y = self.row * CELL_HEIGHT;
-        let rows = font::glyph(character as u8);
-        // Render a genuine 8x16 VGA glyph: eight pixels wide and sixteen scanlines.
-        // SAFETY: The cell is inside the validated console grid.
-        unsafe {
-            self.surface
-                .rect(x, y, CELL_WIDTH, CELL_HEIGHT, self.ansi.background);
-            for (row, bits) in rows.iter().enumerate() {
-                for column in 0..8 {
-                    if bits & (1 << (7 - column)) != 0 {
-                        self.surface
-                            .rect(x + column, y + row, 1, 1, self.ansi.foreground);
-                    }
-                }
-            }
+        let cell = Cell {
+            character: character as u8,
+            foreground: colour_index(self.ansi.foreground),
+            background: colour_index(self.ansi.background),
+        };
+        // SAFETY: Column is within MAX_COLUMNS; the shell is the sole writer.
+        unsafe { write_cell(self.line, self.column, cell) };
+        if self.view_offset == 0 {
+            self.draw_cell(self.column, self.row, cell);
         }
         self.column += 1;
     }
 
     fn newline(&mut self) {
         self.column = 0;
-        self.row += 1;
-        if self.row >= self.rows {
-            self.scroll();
+        self.line = self.line.saturating_add(1);
+        if self.row + 1 >= self.rows {
+            if self.view_offset == 0 {
+                self.scroll();
+            } else {
+                self.view_offset = self.view_offset.saturating_add(1);
+            }
             self.row = self.rows - 1;
+        } else {
+            self.row += 1;
+        }
+        if self.view_offset != 0 {
+            let live_top = self.line.saturating_sub(self.row);
+            let oldest = self.line.saturating_sub(SCROLLBACK_LINES - 1);
+            self.view_offset = self.view_offset.min(live_top.saturating_sub(oldest));
+        }
+        let blank = Cell {
+            character: b' ',
+            foreground: colour_index(self.ansi.foreground),
+            background: colour_index(self.ansi.background),
+        };
+        // SAFETY: The line maps to one row in the fixed ring.
+        unsafe {
+            let start = cell_ptr(self.line, 0);
+            for column in 0..self.columns {
+                start.add(column).write(blank);
+            }
         }
     }
 
@@ -334,16 +469,22 @@ impl Console {
             return;
         }
         self.column -= 1;
-        let x = self.column * CELL_WIDTH;
-        let y = self.row * CELL_HEIGHT;
-        // SAFETY: The cursor remains within the console grid.
-        unsafe {
-            self.surface
-                .rect(x, y, CELL_WIDTH, CELL_HEIGHT, self.ansi.background)
+        let cell = Cell {
+            character: b' ',
+            foreground: colour_index(self.ansi.foreground),
+            background: colour_index(self.ansi.background),
         };
+        // SAFETY: Cursor column is within the fixed row buffer.
+        unsafe { write_cell(self.line, self.column, cell) };
+        if self.view_offset == 0 {
+            self.draw_cell(self.column, self.row, cell);
+        }
     }
 
     fn erase_prompt_cursor(&mut self) {
+        if self.view_offset != 0 {
+            return;
+        }
         let x = self.column * CELL_WIDTH;
         let y = self.row * CELL_HEIGHT + CELL_HEIGHT - 2;
         // The cursor is drawn only in the otherwise-empty next character cell.
@@ -385,11 +526,33 @@ impl Console {
     }
 
     fn draw_prompt_cursor(&mut self) {
+        if self.view_offset != 0 {
+            return;
+        }
         let x = self.column * CELL_WIDTH;
         let y = self.row * CELL_HEIGHT + CELL_HEIGHT - 2;
         // SAFETY: Cursor coordinates are within the console cell.
         unsafe { self.surface.rect(x, y, 7, 1, self.ansi.foreground) };
     }
+}
+
+unsafe fn cell_ptr(line: usize, column: usize) -> *mut Cell {
+    // SAFETY: Callers bound column; modulo bounds the ring row.
+    unsafe {
+        core::ptr::addr_of_mut!(SCROLLBACK)
+            .cast::<Cell>()
+            .add((line % SCROLLBACK_LINES) * MAX_COLUMNS + column)
+    }
+}
+
+unsafe fn write_cell(line: usize, column: usize, cell: Cell) {
+    // SAFETY: Caller guarantees in-range coordinates.
+    unsafe { cell_ptr(line, column).write(cell) };
+}
+
+unsafe fn read_cell(line: usize, column: usize) -> Cell {
+    // SAFETY: Caller guarantees in-range coordinates.
+    unsafe { cell_ptr(line, column).read() }
 }
 
 impl core::fmt::Write for Console {
