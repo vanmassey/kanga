@@ -11,7 +11,11 @@ const ANSI_COLOURS: [(u8, u8, u8); 16] = [
 ];
 
 #[derive(Clone, Copy)]
-enum EscapeState { Ground, Escape, Csi }
+enum EscapeState {
+    Ground,
+    Escape,
+    Csi,
+}
 
 #[derive(Clone, Copy)]
 struct AnsiParser {
@@ -60,7 +64,10 @@ impl AnsiParser {
         for index in 0..self.parameter_count {
             let code = self.parameters[index];
             match code {
-                0 => { self.foreground = DEFAULT_FOREGROUND; self.background = BLACK; }
+                0 => {
+                    self.foreground = DEFAULT_FOREGROUND;
+                    self.background = BLACK;
+                }
                 30..=37 => self.foreground = ANSI_COLOURS[(code - 30) as usize],
                 40..=47 => self.background = ANSI_COLOURS[(code - 40) as usize],
                 90..=97 => self.foreground = ANSI_COLOURS[(code - 90 + 8) as usize],
@@ -77,7 +84,12 @@ impl AnsiParser {
     fn feed(&mut self, byte: u8) -> Option<u8> {
         match self.state {
             EscapeState::Ground => {
-                if byte == 0x1b { self.state = EscapeState::Escape; None } else { Some(byte) }
+                if byte == 0x1b {
+                    self.state = EscapeState::Escape;
+                    None
+                } else {
+                    Some(byte)
+                }
             }
             EscapeState::Escape => {
                 if byte == b'[' {
@@ -90,13 +102,21 @@ impl AnsiParser {
             }
             EscapeState::Csi => match byte {
                 b'0'..=b'9' => {
-                    self.current = self.current.saturating_mul(10)
+                    self.current = self
+                        .current
+                        .saturating_mul(10)
                         .saturating_add(u16::from(byte - b'0'));
                     self.has_digits = true;
                     None
                 }
-                b';' => { self.finish_parameter(); None }
-                b'm' => { self.apply_sgr(); None }
+                b';' => {
+                    self.finish_parameter();
+                    None
+                }
+                b'm' => {
+                    self.apply_sgr();
+                    None
+                }
                 0x40..=0x7e => {
                     self.state = EscapeState::Ground;
                     self.reset_sequence();
@@ -231,7 +251,9 @@ impl Console {
 
     pub fn write_text(&mut self, text: &str) {
         for byte in text.bytes() {
-            let Some(byte) = self.ansi.feed(byte) else { continue };
+            let Some(byte) = self.ansi.feed(byte) else {
+                continue;
+            };
             match byte {
                 b'\n' => self.newline(),
                 b'\r' => self.column = 0,
@@ -252,11 +274,13 @@ impl Console {
         // Render a genuine 8x16 VGA glyph: eight pixels wide and sixteen scanlines.
         // SAFETY: The cell is inside the validated console grid.
         unsafe {
-            self.surface.rect(x, y, CELL_WIDTH, CELL_HEIGHT, self.ansi.background);
+            self.surface
+                .rect(x, y, CELL_WIDTH, CELL_HEIGHT, self.ansi.background);
             for (row, bits) in rows.iter().enumerate() {
                 for column in 0..8 {
                     if bits & (1 << (7 - column)) != 0 {
-                        self.surface.rect(x + column, y + row, 1, 1, self.ansi.foreground);
+                        self.surface
+                            .rect(x + column, y + row, 1, 1, self.ansi.foreground);
                     }
                 }
             }
