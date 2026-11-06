@@ -113,6 +113,9 @@ jobs:
           grep -F "Starting command shell..... " build/serial.log
           grep -F "Type HELP for a list of commands." build/serial.log
           grep -F "Kanga OS 0.1.0" build/serial.log
+          grep -F "This program comes with ABSOLUTELY NO WARRANTY." build/serial.log
+          grep -F "You may redistribute it under the GNU GPL version 2." build/serial.log
+          grep -F "License: https://github.com/vanmassey/kanga/blob/main/LICENSE" build/serial.log
           grep -F "Kanga DOS-style command shell" build/serial.log
           grep -F "KangaFS RAM filesystem..... " build/serial.log
           grep -F "Saved note.txt (16 bytes)." build/serial.log

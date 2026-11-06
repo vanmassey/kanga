@@ -25,6 +25,9 @@ pub fn run(mut console: Option<Console>) -> ! {
         let mut output = Output(console.as_mut());
         let _ = writeln!(output, "\x1b[1;36mKanga OS 0.1.0\x1b[0m");
         let _ = writeln!(output, "(C) 2026 Kanga Development Team");
+        let _ = writeln!(output, "This program comes with ABSOLUTELY NO WARRANTY.");
+        let _ = writeln!(output, "You may redistribute it under the GNU GPL version 2.");
+        let _ = writeln!(output, "License: https://github.com/vanmassey/kanga/blob/main/LICENSE");
         let _ = writeln!(output);
         let _ = writeln!(output, "Initialising kernel........ \x1b[32m[ OK ]\x1b[0m");
         let _ = writeln!(output, "Setting up interrupts...... \x1b[32m[ OK ]\x1b[0m");
@@ -253,7 +256,8 @@ fn execute(command_line: &[u8], console: Option<&mut Console>, filesystem: &mut 
         let _ = writeln!(output, "Kanga is an independent x86-64 operating system.");
         let _ = writeln!(output, "Written in Rust; booted with Limine.");
         let _ = writeln!(output, "Project version: {}", env!("CARGO_PKG_VERSION"));
-        let _ = writeln!(output, "License: GPL-2.0-only");
+        let _ = writeln!(output, "License: GNU GPL version 2 (GPL-2.0-only).");
+        let _ = writeln!(output, "There is no warranty; see the LICENSE file for terms.");
     } else if command.eq_ignore_ascii_case(b"mem") {
         let _ = writeln!(output, "Physical frame allocation: initial 4 KiB allocator");
         let _ = writeln!(
