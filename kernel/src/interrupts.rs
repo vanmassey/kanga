@@ -140,17 +140,35 @@ pub fn initialise() {
         set_gate(idt, 5, exception_5 as *const () as usize, selector, 0);
         set_gate(idt, 6, exception_6 as *const () as usize, selector, 0);
         set_gate(idt, 7, exception_7 as *const () as usize, selector, 0);
-        set_gate(idt, 8, exception_8 as *const () as usize, selector, IST_DOUBLE_FAULT);
+        set_gate(
+            idt,
+            8,
+            exception_8 as *const () as usize,
+            selector,
+            IST_DOUBLE_FAULT,
+        );
         set_gate(idt, 9, exception_9 as *const () as usize, selector, 0);
         set_gate(idt, 10, exception_10 as *const () as usize, selector, 0);
         set_gate(idt, 11, exception_11 as *const () as usize, selector, 0);
         set_gate(idt, 12, exception_12 as *const () as usize, selector, 0);
         set_gate(idt, 13, exception_13 as *const () as usize, selector, 0);
-        set_gate(idt, 14, exception_14 as *const () as usize, selector, IST_PAGE_FAULT);
+        set_gate(
+            idt,
+            14,
+            exception_14 as *const () as usize,
+            selector,
+            IST_PAGE_FAULT,
+        );
         set_gate(idt, 15, exception_15 as *const () as usize, selector, 0);
         set_gate(idt, 16, exception_16 as *const () as usize, selector, 0);
         set_gate(idt, 17, exception_17 as *const () as usize, selector, 0);
-        set_gate(idt, 18, exception_18 as *const () as usize, selector, IST_MACHINE_CHECK);
+        set_gate(
+            idt,
+            18,
+            exception_18 as *const () as usize,
+            selector,
+            IST_MACHINE_CHECK,
+        );
         set_gate(idt, 19, exception_19 as *const () as usize, selector, 0);
         set_gate(idt, 20, exception_20 as *const () as usize, selector, 0);
         set_gate(idt, 21, exception_21 as *const () as usize, selector, 0);
@@ -197,17 +215,10 @@ pub fn initialise() {
     let _ = writeln!(crate::serial::Writer, "Interrupts: keyboard IRQ1 enabled");
 }
 
-unsafe fn set_gate(
-    idt: *mut IdtEntry,
-    vector: usize,
-    handler: usize,
-    selector: u16,
-    ist: u8,
-) {
+unsafe fn set_gate(idt: *mut IdtEntry, vector: usize, handler: usize, selector: u16, ist: u8) {
     // SAFETY: The caller supplies a valid vector within the 256-entry IDT.
     unsafe {
-        idt.add(vector)
-            .write(IdtEntry::new(handler, selector, ist));
+        idt.add(vector).write(IdtEntry::new(handler, selector, ist));
     }
 }
 
