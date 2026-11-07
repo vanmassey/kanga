@@ -383,7 +383,8 @@ pub fn self_test() -> bool {
 
     let first = allocate(first_layout);
     let second = allocate(second_layout);
-    if first.is_null() || second.is_null() || first as usize % 64 != 0 || second as usize % 256 != 0 {
+    if first.is_null() || second.is_null() || first as usize % 64 != 0 || second as usize % 256 != 0
+    {
         if !first.is_null() {
             // SAFETY: first is a live allocation created above.
             let _ = unsafe { deallocate(first, first_layout) };
