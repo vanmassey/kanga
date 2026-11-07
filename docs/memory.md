@@ -42,7 +42,7 @@ The virtual memory manager in `kernel/src/paging.rs` operates on the active four
 
 The manager is initialised after the physical frame allocator and HHDM are ready. A boot-time self-test creates a temporary mapping, verifies translation, removes the mapping and returns its data frame. The intermediate page-table frames created by that test are retained.
 
-The manager's page-table lock and the physical allocator's lock disable local maskable interrupts while held, preventing ordinary IRQ handlers from pre-empting a lock holder and re-entering either subsystem. They remain spin locks for cross-CPU exclusion; NMI handlers must not acquire them. The manager currently edits the active boot address space; it does not yet create independent process address spaces, reclaim empty page-table frames, or provide a kernel heap. The no-execute flag also depends on the CPU's EFER.NXE feature being enabled; callers must not request it until that architectural setup is implemented.
+The manager's page-table lock and the physical allocator's lock disable local maskable interrupts while held, preventing ordinary IRQ handlers from pre-empting a lock holder and re-entering either subsystem. They remain spin locks for cross-CPU exclusion; NMI handlers must not acquire them. The manager currently edits the active boot address space; it does not yet create independent process address spaces or reclaim empty page-table frames. The no-execute flag also depends on the CPU's EFER.NXE feature being enabled; callers must not request it until that architectural setup is implemented.
 
 ## Boot-time allocator checks
 
@@ -50,12 +50,11 @@ During QEMU boot, Kanga allocates three distinct frames, verifies direct-map mem
 
 ## Remaining work
 
-- IRQ-safe locking and allocation entry points;
 - extending physical-frame management beyond the current 64 GiB bitmap limit;
 - independent address spaces and safe CR3 switching;
 - safe reclamation of empty page-table frames;
 - architectural setup and validation for the no-execute feature;
-- a kernel heap backed by allocated frames; and
+- growth of the initial heap through virtual-page-backed expansion; and
 - controlled handling of bootloader-reclaimable memory after the bootloader data is no longer needed.
 
 ## Framebuffer and graphical boot screen
