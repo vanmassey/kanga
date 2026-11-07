@@ -1,4 +1,4 @@
-//! Frame-backed kernel heap using Limine's higher-half direct map.
+//! Virtually contiguous kernel heap backed by independently allocated frames.
 //!
 //! This explicit allocator is not yet installed as the process-wide
 //! `GlobalAlloc`.
@@ -121,7 +121,7 @@ static HEAP: HeapLock = HeapLock::new();
 /// The heap occupies a dedicated kernel virtual range. Physical frames are
 /// allocated independently and mapped on demand, so growth does not require
 /// physically contiguous memory.
-pub fn initialise(_hhdm_offset: u64) -> bool {
+pub fn initialise() -> bool {
     let mut state = HEAP.lock();
     if state.is_some() {
         return false;
