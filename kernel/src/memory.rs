@@ -1,7 +1,8 @@
 use limine::memory_map::{Entry, EntryType};
 
 pub const PAGE_SIZE: u64 = 4096;
-pub const BITMAP_WORDS: usize = 16_384;
+// 262,144 words track 16,777,216 4 KiB frames (64 GiB of physical space).
+pub const BITMAP_WORDS: usize = 262_144;
 const LOW_MEMORY_RESERVED_END: u64 = 0x10_0000;
 const FRAME_TEST_PATTERN: u64 = 0x4B41_4E47_4146_524D;
 
