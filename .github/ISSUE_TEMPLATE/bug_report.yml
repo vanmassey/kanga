@@ -1,0 +1,73 @@
+name: Bug report
+description: Report a reproducible problem with Kanga.
+title: "[Bug]: "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before opening an issue, search existing reports for the same problem.
+        Do not report security vulnerabilities publicly; follow [SECURITY.md](https://github.com/vanmassey/kanga/blob/main/SECURITY.md).
+  - type: input
+    id: version
+    attributes:
+      label: Kanga version or commit
+      description: For example, v0.1.0 or a commit SHA.
+      placeholder: v0.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Boot environment
+      options:
+        - QEMU
+        - Physical hardware
+        - Other emulator or virtual machine
+    validations:
+      required: true
+  - type: input
+    id: hardware
+    attributes:
+      label: Hardware or emulator details
+      description: Include the QEMU version and command-line options, or the machine model and firmware where relevant.
+      placeholder: QEMU 9.x, 256 MiB RAM, BIOS
+    validations:
+      required: false
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the problem and what you expected to happen.
+      placeholder: |
+        Expected:
+        Actual:
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Build the ISO...
+        2. Boot using...
+        3. Run...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Serial log and other evidence
+      description: Paste relevant serial output or link to screenshots. Remove private information before posting.
+      render: text
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues for a duplicate.
+          required: true
+        - label: This is not a security vulnerability report.
+          required: true
