@@ -18,7 +18,7 @@ Kanga uses a bitmap to track 4 KiB physical frames. One bit represents one frame
 - A contiguous-run allocator can reserve adjacent frames for future page-table and DMA-related work.
 - Usable frames above the bitmap's 4 GiB limit are counted and reported, but are not allocated.
 
-The allocator requires no heap. Allocation scans the bitmap, so it is O(number of bitmap words) in the worst case rather than O(1). It is retained as a kernel-wide service and serialises access with a spin mutex across CPUs. The lock must not be acquired from an interrupt handler that can interrupt code already holding it; an IRQ-aware locking path is still required. The deallocation function is unsafe because callers must return only frames they own and must stop using them before returning them.
+The allocator requires no heap. Allocation scans the bitmap, so it is O(number of bitmap words) in the worst case rather than O(1). It is retained as a kernel-wide service and serialises access with a spin mutex across CPUs. The mutex saves the local interrupt-enable state, disables maskable interrupts before waiting for the lock, and restores the previous state after releasing it. This prevents a local maskable interrupt from deadlocking by re-entering the allocator. NMI handlers must not acquire this lock. The deallocation function is unsafe because callers must return only frames they own and must stop using them before returning them.
 
 ## Higher-half direct map
 
@@ -42,7 +42,7 @@ The virtual memory manager in `kernel/src/paging.rs` operates on the active four
 
 The manager is initialised after the physical frame allocator and HHDM are ready. A boot-time self-test creates a temporary mapping, verifies translation, removes the mapping and returns its data frame. The intermediate page-table frames created by that test are retained.
 
-The manager's page-table lock and the physical allocator's lock are spin locks, not IRQ-safe locks. Do not call these operations from an interrupt handler that can pre-empt code holding either lock. The manager currently edits the active boot address space; it does not yet create independent process address spaces, reclaim empty page-table frames, or provide a kernel heap. The no-execute flag also depends on the CPU's EFER.NXE feature being enabled; callers must not request it until that architectural setup is implemented.
+The manager's page-table lock and the physical allocator's lock disable local maskable interrupts while held, preventing ordinary IRQ handlers from pre-empting a lock holder and re-entering either subsystem. They remain spin locks for cross-CPU exclusion; NMI handlers must not acquire them. The manager currently edits the active boot address space; it does not yet create independent process address spaces, reclaim empty page-table frames, or provide a kernel heap. The no-execute flag also depends on the CPU's EFER.NXE feature being enabled; callers must not request it until that architectural setup is implemented.
 
 ## Boot-time allocator checks
 

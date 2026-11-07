@@ -234,6 +234,14 @@ impl<T> SpinMutex<T> {
     }
 
     fn lock(&self) -> SpinMutexGuard<'_, T> {
+        // Disable local maskable interrupts before taking the lock. Otherwise
+        // an IRQ handler could re-enter the allocator and spin forever on the
+        // lock held by the interrupted code.
+        let interrupt_flags: u64;
+        unsafe {
+            core::arch::asm!("pushfq", "pop {}", "cli", out(reg) interrupt_flags);
+        }
+
         while self
             .locked
             .compare_exchange_weak(false, true, Ordering::Acquire, Ordering::Relaxed)
@@ -243,12 +251,16 @@ impl<T> SpinMutex<T> {
                 core::hint::spin_loop();
             }
         }
-        SpinMutexGuard { mutex: self }
+        SpinMutexGuard {
+            mutex: self,
+            restore_interrupts: interrupt_flags & (1 << 9) != 0,
+        }
     }
 }
 
 struct SpinMutexGuard<'a, T> {
     mutex: &'a SpinMutex<T>,
+    restore_interrupts: bool,
 }
 
 impl<T> core::ops::Deref for SpinMutexGuard<'_, T> {
@@ -269,6 +281,10 @@ impl<T> core::ops::DerefMut for SpinMutexGuard<'_, T> {
 impl<T> Drop for SpinMutexGuard<'_, T> {
     fn drop(&mut self) {
         self.mutex.locked.store(false, Ordering::Release);
+        if self.restore_interrupts {
+            // SAFETY: Restore IF only if it was set when this guard was created.
+            unsafe { core::arch::asm!("sti", options(nomem, nostack)) };
+        }
     }
 }
 
