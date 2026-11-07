@@ -85,6 +85,7 @@ pub fn run(mut console: Option<Console>) -> ! {
                     if let Some(console) = console.as_mut() {
                         console.follow_live();
                     }
+                    history_index = history_count;
                     line[length] = character;
                     length += 1;
                     let mut output = Output(console.as_mut());
@@ -95,6 +96,7 @@ pub fn run(mut console: Option<Console>) -> ! {
                     if let Some(console) = console.as_mut() {
                         console.follow_live();
                     }
+                    history_index = history_count;
                     length -= 1;
                     let mut output = Output(console.as_mut());
                     let _ = output.write_str("\x08 \x08");
