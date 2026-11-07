@@ -36,9 +36,21 @@ pub fn run(mut console: Option<Console>) -> ! {
             "Kanga OS  |  x86_64  |  Limine boot protocol",
         );
         draw_panel_line(&mut output, width, "(C) 2026 Kanga Development Team");
-        draw_panel_line(&mut output, width, "This program comes with ABSOLUTELY NO WARRANTY.");
-        draw_panel_line(&mut output, width, "You may redistribute it under the GNU GPL version 2.");
-        draw_panel_line(&mut output, width, "License: https://github.com/vanmassey/kanga/blob/main/LICENSE");
+        draw_panel_line(
+            &mut output,
+            width,
+            "This program comes with ABSOLUTELY NO WARRANTY.",
+        );
+        draw_panel_line(
+            &mut output,
+            width,
+            "You may redistribute it under the GNU GPL version 2.",
+        );
+        draw_panel_line(
+            &mut output,
+            width,
+            "License: https://github.com/vanmassey/kanga/blob/main/LICENSE",
+        );
         draw_rule(&mut output, width);
         draw_panel_line(&mut output, width, "KERNEL STARTUP");
         draw_status(&mut output, width, "Kernel core", "READY");
@@ -49,7 +61,11 @@ pub fn run(mut console: Option<Console>) -> ! {
         draw_rule(&mut output, width);
         draw_panel_line(&mut output, width, "COMMAND INTERFACE");
         draw_panel_line(&mut output, width, "Type HELP to browse commands.");
-        draw_panel_line(&mut output, width, "Use the Up and Down arrows to navigate scrollback.");
+        draw_panel_line(
+            &mut output,
+            width,
+            "Use the Up and Down arrows to navigate scrollback.",
+        );
         draw_rule(&mut output, width);
         let _ = write!(output, "\x1b[1;36mKanga> \x1b[0m");
     }
@@ -187,7 +203,10 @@ fn execute(command_line: &[u8], console: Option<&mut Console>, filesystem: &mut 
         let _ = writeln!(output);
         let _ = writeln!(output, "\x1b[1;36mFILES AND STORAGE\x1b[0m");
         let _ = writeln!(output, "  DIR       List files in KangaFS");
-        let _ = writeln!(output, "  WRITE     Create or replace a file: WRITE name.txt text");
+        let _ = writeln!(
+            output,
+            "  WRITE     Create or replace a file: WRITE name.txt text"
+        );
         let _ = writeln!(output, "  TYPE      Display a file: TYPE name.txt");
         let _ = writeln!(output, "  DEL       Delete a file: DEL name.txt");
         let _ = writeln!(output, "  FSINFO    Show filesystem capacity and status");
@@ -341,9 +360,17 @@ fn execute(command_line: &[u8], console: Option<&mut Console>, filesystem: &mut 
             let _ = writeln!(output);
             let _ = writeln!(output, "KERNEL HEAP");
             let _ = writeln!(output, "  Mapped:       {} KiB", stats.mapped_bytes / 1024);
-            let _ = writeln!(output, "  Occupied:     {} KiB", stats.occupied_bytes / 1024);
+            let _ = writeln!(
+                output,
+                "  Occupied:     {} KiB",
+                stats.occupied_bytes / 1024
+            );
             let _ = writeln!(output, "  Free:         {} KiB", stats.free_bytes / 1024);
-            let _ = writeln!(output, "  Largest free: {} KiB", stats.largest_free_block / 1024);
+            let _ = writeln!(
+                output,
+                "  Largest free: {} KiB",
+                stats.largest_free_block / 1024
+            );
             let _ = writeln!(output, "  Free blocks:  {}", stats.free_block_count);
             let _ = writeln!(
                 output,
