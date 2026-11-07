@@ -19,6 +19,23 @@ const MAX_HEAP_PAGES: usize = 4096;
 const INITIAL_HEAP_BYTES: usize = INITIAL_HEAP_PAGES * PAGE_SIZE as usize;
 const MAX_HEAP_BYTES: usize = MAX_HEAP_PAGES * PAGE_SIZE as usize;
 
+/// Snapshot of the kernel heap's capacity and free-list state.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct HeapStats {
+    /// Total virtual heap capacity currently mapped.
+    pub mapped_bytes: usize,
+    /// Bytes currently represented by free-list blocks.
+    pub free_bytes: usize,
+    /// Size of the largest single free block.
+    pub largest_free_block: usize,
+    /// Number of nodes in the free list.
+    pub free_block_count: usize,
+    /// Mapped bytes not currently available as free blocks.
+    pub occupied_bytes: usize,
+    /// Free bytes that cannot be used as one contiguous allocation.
+    pub fragmented_free_bytes: usize,
+}
+
 #[repr(C)]
 struct FreeBlock {
     size: usize,
@@ -157,6 +174,37 @@ pub fn initialise() -> bool {
         free: first,
     });
     true
+}
+
+/// Return a consistent snapshot of heap capacity and free-space fragmentation.
+pub fn statistics() -> Option<HeapStats> {
+    let state = HEAP.lock();
+    let heap = state.as_ref()?;
+    let mapped_bytes = heap.end.checked_sub(heap.start)?;
+    let mut free_bytes = 0usize;
+    let mut largest_free_block = 0usize;
+    let mut free_block_count = 0usize;
+    let mut current = heap.free;
+
+    while !current.is_null() {
+        // SAFETY: The lock protects the allocator and every node belongs to
+        // the mapped heap range until the node is removed from the free list.
+        let block = unsafe { &*current };
+        free_bytes = free_bytes.checked_add(block.size)?;
+        largest_free_block = largest_free_block.max(block.size);
+        free_block_count = free_block_count.checked_add(1)?;
+        current = block.next;
+    }
+
+    let occupied_bytes = mapped_bytes.checked_sub(free_bytes)?;
+    Some(HeapStats {
+        mapped_bytes,
+        free_bytes,
+        largest_free_block,
+        free_block_count,
+        occupied_bytes,
+        fragmented_free_bytes: free_bytes.saturating_sub(largest_free_block),
+    })
 }
 
 /// Map newly allocated physical frames into the heap's virtual address range.
@@ -567,6 +615,16 @@ pub fn self_test() -> bool {
         unsafe { deallocate(reused, second_layout) }
     };
 
+    let stats = statistics();
+    let fully_coalesced = stats.is_some_and(|stats| {
+        stats.mapped_bytes >= 96 * 1024
+            && stats.free_bytes == stats.mapped_bytes
+            && stats.largest_free_block == stats.mapped_bytes
+            && stats.free_block_count == 1
+            && stats.occupied_bytes == 0
+            && stats.fragmented_free_bytes == 0
+    });
+
     rejected_wrong_layout
         && zeroed
         && freed_growth
@@ -574,6 +632,7 @@ pub fn self_test() -> bool {
         && freed_first
         && !reused.is_null()
         && freed_reused
+        && fully_coalesced
 }
 
 fn align_up(value: usize, alignment: usize) -> Option<usize> {
