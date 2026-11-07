@@ -189,7 +189,6 @@ unsafe fn inb(port: u16) -> u8 {
     value
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::{decode, DateTime, RawTime, BINARY_MODE, TWENTY_FOUR_HOUR};
@@ -252,8 +251,8 @@ mod tests {
 
     #[test]
     fn validates_leap_day_using_gregorian_rules() {
-        let leap_day = decode(raw(0, 0, 12, 0x29, 0x02, 0x00, 0x20), 0);
-        let non_leap_century = decode(raw(0, 0, 12, 0x29, 0x02, 0x00, 0x19), 0);
+        let leap_day = decode(raw(0, 0, 0x92, 0x29, 0x02, 0x00, 0x20), 0);
+        let non_leap_century = decode(raw(0, 0, 0x92, 0x29, 0x02, 0x00, 0x19), 0);
         assert_eq!(leap_day, Some(expected(2000, 2, 29, 12, 0, 0)));
         assert_eq!(non_leap_century, None);
     }
