@@ -437,10 +437,19 @@ fn flush_tlb(virtual_address: u64) {
     }
 }
 
-struct PageTableGuard;
+struct PageTableGuard {
+    restore_interrupts: bool,
+}
 
 impl PageTableGuard {
     fn lock() -> Self {
+        // Prevent a local interrupt handler from re-entering the page-table
+        // manager while this CPU owns its lock.
+        let interrupt_flags: u64;
+        unsafe {
+            asm!("pushfq", "pop {}", "cli", out(reg) interrupt_flags);
+        }
+
         while PAGE_TABLE_LOCK
             .compare_exchange_weak(false, true, Ordering::Acquire, Ordering::Relaxed)
             .is_err()
@@ -449,12 +458,18 @@ impl PageTableGuard {
                 core::hint::spin_loop();
             }
         }
-        Self
+        Self {
+            restore_interrupts: interrupt_flags & (1 << 9) != 0,
+        }
     }
 }
 
 impl Drop for PageTableGuard {
     fn drop(&mut self) {
         PAGE_TABLE_LOCK.store(false, Ordering::Release);
+        if self.restore_interrupts {
+            // SAFETY: Restore IF only if it was set before acquiring the lock.
+            unsafe { asm!("sti", options(nomem, nostack)) };
+        }
     }
 }
