@@ -29,6 +29,11 @@ pub fn run(mut console: Option<Console>) -> ! {
         draw_rule(&mut output, width);
         draw_centered(&mut output, width, "\x1b[1;36mKANGA OS\x1b[0m");
         draw_centered(&mut output, width, "SYSTEM CONSOLE");
+        draw_panel_line(&mut output, width, r" /\_/\");
+        draw_panel_line(&mut output, width, r"( o.o )");
+        draw_panel_line(&mut output, width, r" >-v-<");
+        draw_panel_line(&mut output, width, r" /   \");
+        draw_panel_line(&mut output, width, r"(_____)");
         draw_rule(&mut output, width);
         draw_panel_line(
             &mut output,
@@ -282,14 +287,14 @@ fn execute(command_line: &[u8], console: Option<&mut Console>, filesystem: &mut 
                 );
             }
             None => {
-                let _ = writeln!(output, "RTC unavailable or returned an invalid date/time.");
+                let _ = writeln!(output, "The clock has gone walkabout: CMOS RTC returned no valid time.");
             }
         }
     } else if command.eq_ignore_ascii_case(b"cal") {
         match crate::rtc::read() {
             Some(time) => print_calendar(&mut output, time.year, time.month),
             None => {
-                let _ = writeln!(output, "Calendar unavailable: CMOS RTC read failed.");
+                let _ = writeln!(output, "The calendar kangaroo is lost: CMOS RTC read failed.");
             }
         }
     } else if command.eq_ignore_ascii_case(b"uptime") {
@@ -317,7 +322,7 @@ fn execute(command_line: &[u8], console: Option<&mut Console>, filesystem: &mut 
                 let _ = writeln!(output, "{text}");
             }
             None => {
-                let _ = writeln!(output, "File not found.");
+                let _ = writeln!(output, "That file has hopped out of KangaFS.");
             }
         }
     } else if command.eq_ignore_ascii_case(b"del") || command.eq_ignore_ascii_case(b"delete") {
@@ -325,7 +330,7 @@ fn execute(command_line: &[u8], console: Option<&mut Console>, filesystem: &mut 
             let name = core::str::from_utf8(arguments).unwrap_or("?");
             let _ = writeln!(output, "Deleted {name}.");
         } else {
-            let _ = writeln!(output, "File not found or invalid name.");
+            let _ = writeln!(output, "No file by that name. The kangaroo checked every pouch.");
         }
     } else if command.eq_ignore_ascii_case(b"fsinfo") {
         let _ = writeln!(output, "Filesystem: KangaFS");
@@ -390,7 +395,7 @@ fn execute(command_line: &[u8], console: Option<&mut Console>, filesystem: &mut 
         }
     } else {
         let text = core::str::from_utf8(command).unwrap_or("[invalid command]");
-        let _ = writeln!(output, "Bad command or file name: {text}");
+        let _ = writeln!(output, "Kanga can't find '{text}'. It may have hopped off.");
     }
 }
 
@@ -403,7 +408,7 @@ fn report_fs_error(output: &mut Output<'_>, error: filesystem::Error) {
         filesystem::Error::FileTooLarge => "File is too large (256 bytes maximum).",
         filesystem::Error::DirectoryFull => "KangaFS directory is full (16 files maximum).",
     };
-    let _ = writeln!(output, "KangaFS: {message}");
+    let _ = writeln!(output, "KangaFS kangaroo report: {message}");
 }
 
 fn trim(mut input: &[u8]) -> &[u8] {
