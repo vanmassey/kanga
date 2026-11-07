@@ -213,6 +213,7 @@ fn execute(command_line: &[u8], console: Option<&mut Console>, filesystem: &mut 
             "  WRITE     Create or replace a file: WRITE name.txt text"
         );
         let _ = writeln!(output, "  TYPE      Display a file: TYPE name.txt");
+        let _ = writeln!(output, "  COPY      Copy a file: COPY source.txt destination.txt");
         let _ = writeln!(output, "  DEL       Delete a file: DEL name.txt");
         let _ = writeln!(output, "  FSINFO    Show filesystem capacity and status");
         let _ = writeln!(output);
@@ -322,6 +323,31 @@ fn execute(command_line: &[u8], console: Option<&mut Console>, filesystem: &mut 
             Ok(()) => {
                 let filename = core::str::from_utf8(name).unwrap_or("?");
                 let _ = writeln!(output, "Saved {filename} ({} bytes).", contents.len());
+            }
+            Err(error) => report_fs_error(&mut output, error),
+        }
+    } else if command.eq_ignore_ascii_case(b"copy") {
+        let separator = arguments.iter().position(|byte| byte.is_ascii_whitespace());
+        let Some(separator) = separator else {
+            let _ = writeln!(output, "Usage: COPY source.txt destination.txt");
+            return;
+        };
+        let source = &arguments[..separator];
+        let remainder = trim(&arguments[separator..]);
+        let destination_end = remainder
+            .iter()
+            .position(|byte| byte.is_ascii_whitespace())
+            .unwrap_or(remainder.len());
+        let destination = &remainder[..destination_end];
+        if destination.is_empty() || !trim(&remainder[destination_end..]).is_empty() {
+            let _ = writeln!(output, "Usage: COPY source.txt destination.txt");
+            return;
+        }
+        match filesystem.copy(source, destination) {
+            Ok(()) => {
+                let source_name = core::str::from_utf8(source).unwrap_or("?");
+                let destination_name = core::str::from_utf8(destination).unwrap_or("?");
+                let _ = writeln!(output, "Copied {source_name} to {destination_name}.");
             }
             Err(error) => report_fs_error(&mut output, error),
         }
@@ -435,6 +461,7 @@ fn report_fs_error(output: &mut Output<'_>, error: filesystem::Error) {
         filesystem::Error::NameTooLong => "Filename is too long (24 characters maximum).",
         filesystem::Error::FileTooLarge => "File is too large (256 bytes maximum).",
         filesystem::Error::DirectoryFull => "KangaFS directory is full (16 files maximum).",
+        filesystem::Error::NotFound => "Source file does not exist in KangaFS.",
     };
     let _ = writeln!(output, "KangaFS kangaroo report: {message}");
 }
