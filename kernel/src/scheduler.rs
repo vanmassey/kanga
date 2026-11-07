@@ -26,17 +26,10 @@ enum TaskState {
     Running,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
-#[repr(u8)]
-enum TaskPriority {
-    Normal = 1,
-    High = 2,
-}
-
 #[derive(Clone, Copy)]
 struct Task {
     name: &'static str,
-    priority: TaskPriority,
+    priority: u8,
     state: TaskState,
     context: usize,
 }
@@ -44,7 +37,7 @@ struct Task {
 impl Task {
     const EMPTY: Self = Self {
         name: "",
-        priority: TaskPriority::Normal,
+        priority: 1,
         state: TaskState::Empty,
         context: 0,
     };
@@ -189,13 +182,13 @@ pub fn initialise() -> bool {
     let tasks = unsafe { &mut *TASKS.0.get() };
     tasks[0] = Task {
         name: "bootstrap",
-        priority: TaskPriority::Normal,
+        priority: 1,
         state: TaskState::Running,
         context: 0,
     };
     tasks[1] = Task {
         name: "worker-a",
-        priority: TaskPriority::Normal,
+        priority: 1,
         state: TaskState::Runnable,
         context: unsafe { build_initial_context(worker_a_stack, worker_a, code_segment) },
     };
@@ -253,7 +246,7 @@ extern "C" fn scheduler_tick(context: usize) -> usize {
     tasks[current].state = TaskState::Runnable;
 
     let mut selected = current;
-    let mut selected_priority = TaskPriority::Normal;
+    let mut selected_priority = 0_u8;
     for offset in 1..=MAX_TASKS {
         let candidate = (current + offset) % MAX_TASKS;
         let task = tasks[candidate];
