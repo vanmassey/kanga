@@ -180,8 +180,7 @@ fn map_heap_pages(start: usize, pages: usize) -> bool {
             break;
         }
 
-        let frame =
-            memory::with_global_allocator(|allocator| allocator.allocate_frame()).flatten();
+        let frame = memory::with_global_allocator(|allocator| allocator.allocate_frame()).flatten();
         let Some(frame) = frame else {
             break;
         };
@@ -254,7 +253,8 @@ fn grow_heap() -> bool {
         current = unsafe { (*current).next };
     }
 
-    if !last.is_null() && (last as usize).checked_add(unsafe { (*last).size }) == Some(growth_start) {
+    if !last.is_null() && (last as usize).checked_add(unsafe { (*last).size }) == Some(growth_start)
+    {
         // SAFETY: The last free block and new pages are adjacent and owned.
         unsafe {
             (*last).size += growth_bytes;
