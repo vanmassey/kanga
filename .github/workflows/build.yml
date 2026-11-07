@@ -28,7 +28,7 @@ jobs:
           set -eu
           rm -f build/serial.log build/qemu-monitor.sock build/kanga-screen.ppm build/kanga-help-screen.ppm
           qemu-system-x86_64 \
-            -machine pc -m 256M -boot d -cdrom build/kanga.iso \
+            -machine pc -cpu max -m 256M -boot d -cdrom build/kanga.iso \
             -serial file:build/serial.log \
             -monitor unix:build/qemu-monitor.sock,server,nowait \
             -display none -no-reboot -no-shutdown &
@@ -92,6 +92,9 @@ jobs:
           printf 'screendump build/kanga-screen.ppm\n' | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
           sleep 0.2
           cat build/serial.log
+          # This was emitted by Limine when QEMU's default CPU model lacked
+          # 1 GiB page support. Keep the emulator CPU feature set explicit.
+          ! grep -F "paging: 1GiB pages are not supported" build/serial.log
           grep -F "Kanga kernel entry reached" build/serial.log
           grep -F "Interrupts: 256-entry IDT installed" build/serial.log
           grep -F "Interrupts: CPU exception gates 0-31 configured" build/serial.log
