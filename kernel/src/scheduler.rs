@@ -7,6 +7,7 @@
 use core::alloc::Layout;
 use core::arch::{asm, global_asm};
 use core::cell::UnsafeCell;
+use core::fmt::Write;
 use core::ptr;
 use core::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 
@@ -182,12 +183,10 @@ pub fn initialise() -> bool {
 
     let worker_a_context = unsafe { build_initial_context(worker_a_stack, worker_a, code_segment) };
     let worker_b_context = unsafe { build_initial_context(worker_b_stack, worker_b, code_segment) };
-    let worker_a_frame = unsafe {
-        &*((worker_a_context + REGISTER_FRAME_OFFSET) as *const RegisterFrame)
-    };
-    let worker_b_frame = unsafe {
-        &*((worker_b_context + REGISTER_FRAME_OFFSET) as *const RegisterFrame)
-    };
+    let worker_a_frame =
+        unsafe { &*((worker_a_context + REGISTER_FRAME_OFFSET) as *const RegisterFrame) };
+    let worker_b_frame =
+        unsafe { &*((worker_b_context + REGISTER_FRAME_OFFSET) as *const RegisterFrame) };
     let _ = writeln!(
         crate::serial::Writer,
         "Scheduler context A: rsp=0x{:016x} rip=0x{:016x} cs=0x{:04x} flags=0x{:x}",
