@@ -469,6 +469,73 @@ pub fn allocate(layout: Layout) -> *mut u8 {
     }
 }
 
+/// Release complete unused pages at the end of the heap.
+///
+/// The final free-list block must cover the page being removed, while retaining
+/// enough space for its own FreeBlock header. The initial heap capacity is
+/// retained so the allocator always has a valid minimum arena.
+fn reclaim_tail_pages(heap: &mut HeapState) {
+    let minimum_end = heap.start.saturating_add(INITIAL_HEAP_BYTES);
+    let mut tail = heap.free;
+    if tail.is_null() {
+        return;
+    }
+
+    while unsafe { !(*tail).next.is_null() } {
+        // SAFETY: The free list is protected by the heap lock.
+        tail = unsafe { (*tail).next };
+    }
+
+    loop {
+        let page_size = PAGE_SIZE as usize;
+        let Some(page_start) = heap.end.checked_sub(page_size) else {
+            break;
+        };
+        if page_start < minimum_end {
+            break;
+        }
+
+        // Keep the free-list node itself mapped after removing the final page.
+        let tail_start = tail as usize;
+        let Some(header_end) = tail_start.checked_add(size_of::<FreeBlock>()) else {
+            break;
+        };
+        if header_end > page_start {
+            break;
+        }
+        // SAFETY: tail is the final free block and is protected by the heap lock.
+        let tail_end = tail_start.saturating_add(unsafe { (*tail).size });
+        if tail_end != heap.end {
+            break;
+        }
+
+        let Ok(frame) = paging::unmap_page(page_start as u64) else {
+            break;
+        };
+        let returned = memory::with_global_allocator(|allocator| {
+            // SAFETY: The page is unmapped and this heap owned its physical frame.
+            unsafe { allocator.deallocate_frame(frame) }
+        })
+        .unwrap_or(false);
+
+        if !returned {
+            // Keep the heap metadata valid if allocator validation rejects the frame.
+            let _ = paging::map_page(
+                page_start as u64,
+                frame,
+                PageFlags::PRESENT | PageFlags::WRITABLE,
+            );
+            break;
+        }
+
+        // SAFETY: The retained portion of tail remains mapped and writable.
+        unsafe {
+            (*tail).size -= page_size;
+        }
+        heap.end = page_start;
+    }
+}
+
 /// Return a live allocation to the heap.
 ///
 /// # Safety
@@ -550,6 +617,7 @@ pub unsafe fn deallocate(pointer: *mut u8, layout: Layout) -> bool {
         }
     }
 
+    reclaim_tail_pages(heap);
     true
 }
 
@@ -617,7 +685,7 @@ pub fn self_test() -> bool {
 
     let stats = statistics();
     let fully_coalesced = stats.is_some_and(|stats| {
-        stats.mapped_bytes >= 96 * 1024
+        stats.mapped_bytes == INITIAL_HEAP_BYTES
             && stats.free_bytes == stats.mapped_bytes
             && stats.largest_free_block == stats.mapped_bytes
             && stats.free_block_count == 1
