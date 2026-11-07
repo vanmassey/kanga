@@ -176,7 +176,8 @@ pub fn map_page(
     let user = flags.contains(PageFlags::USER);
 
     for index in indices.iter().take(3) {
-        let entry = unsafe { core::ptr::read_volatile(core::ptr::addr_of!((*table).entries[*index])) };
+        let entry =
+            unsafe { core::ptr::read_volatile(core::ptr::addr_of!((*table).entries[*index])) };
         if entry.is_present() {
             if entry.is_huge() {
                 return Err(MappingError::HugePageConflict);
@@ -217,7 +218,8 @@ pub fn map_page(
 
     let leaf_index = indices[3];
     // SAFETY: table points to a valid, mapped page-table frame.
-    let leaf = unsafe { core::ptr::read_volatile(core::ptr::addr_of!((*table).entries[leaf_index])) };
+    let leaf =
+        unsafe { core::ptr::read_volatile(core::ptr::addr_of!((*table).entries[leaf_index])) };
     if leaf.is_present() {
         return Err(MappingError::AlreadyMapped);
     }
@@ -289,11 +291,15 @@ pub fn unmap_page(virtual_address: u64) -> Result<u64, MappingError> {
 pub fn self_test() -> bool {
     const TEST_VIRTUAL_ADDRESS: u64 = 0x0000_4000_0000_0000;
 
-    if !matches!(translate(TEST_VIRTUAL_ADDRESS), Err(MappingError::NotMapped)) {
+    if !matches!(
+        translate(TEST_VIRTUAL_ADDRESS),
+        Err(MappingError::NotMapped)
+    ) {
         return false;
     }
 
-    let Some(frame) = memory::with_global_allocator(|allocator| allocator.allocate_frame()).flatten()
+    let Some(frame) =
+        memory::with_global_allocator(|allocator| allocator.allocate_frame()).flatten()
     else {
         return false;
     };
