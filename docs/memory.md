@@ -9,14 +9,14 @@ Kanga requests the Limine memory map and walks the returned entries without allo
 Kanga uses a bitmap to track 4 KiB physical frames. One bit represents one frame: a set bit means unavailable and a clear bit means free.
 
 - The bitmap is stored in the kernel image's static `.bss` storage, not in the frames it manages.
-- The current bitmap contains 16,384 64-bit words and tracks physical addresses below 4 GiB (1,048,576 frames).
+- The bitmap contains 262,144 64-bit words and tracks physical addresses below 64 GiB (16,777,216 frames). Its static `.bss` footprint is 2 MiB.
 - The first MiB of physical address space is reserved.
 - Only complete, page-aligned frames inside Limine USABLE regions are marked free.
 - Reserved, kernel, module and bootloader-reclaimable entries remain unavailable.
 - Allocation uses a next-fit scan and updates one bit per allocated frame.
 - Deallocation validates alignment, managed-region membership and the current allocation bit, rejecting duplicate frees.
 - A contiguous-run allocator can reserve adjacent frames for future page-table and DMA-related work.
-- Usable frames above the bitmap's 4 GiB limit are counted and reported, but are not allocated.
+- Usable frames at or above the bitmap's 64 GiB limit are counted and reported, but are not allocated.
 
 The allocator requires no heap. Allocation scans the bitmap, so it is O(number of bitmap words) in the worst case rather than O(1). It is retained as a kernel-wide service and serialises access with a spin mutex across CPUs. The mutex saves the local interrupt-enable state, disables maskable interrupts before waiting for the lock, and restores the previous state after releasing it. This prevents a local maskable interrupt from deadlocking by re-entering the allocator. NMI handlers must not acquire this lock. The deallocation function is unsafe because callers must return only frames they own and must stop using them before returning them.
 
@@ -51,7 +51,7 @@ During QEMU boot, Kanga allocates three distinct frames, verifies direct-map mem
 ## Remaining work
 
 - IRQ-safe locking and allocation entry points;
-- allocating frames above the current 4 GiB bitmap limit;
+- extending physical-frame management beyond the current 64 GiB bitmap limit;
 - independent address spaces and safe CR3 switching;
 - safe reclamation of empty page-table frames;
 - architectural setup and validation for the no-execute feature;
