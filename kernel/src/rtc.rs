@@ -227,7 +227,7 @@ mod tests {
 
     #[test]
     fn decodes_bcd_timestamp_with_century() {
-        let result = decode(raw(0x56, 0x34, 0x21, 0x09, 0x11, 0x26, 0x20), 0);
+        let result = decode(raw(0x56, 0x34, 0x21, 0x09, 0x11, 0x26, 0x20), TWENTY_FOUR_HOUR);
         assert_eq!(result, Some(expected(2026, 11, 9, 21, 34, 56)));
     }
 
@@ -280,10 +280,10 @@ mod tests {
 
     #[test]
     fn falls_back_to_pivot_year_when_century_is_unavailable_or_invalid() {
-        let no_century_2069 = decode(raw(0, 0, 0x12, 0x01, 0x01, 0x69, 0x00), 0);
-        let no_century_1970 = decode(raw(0, 0, 0x12, 0x01, 0x01, 0x70, 0x00), 0);
-        let invalid_bcd_century = decode(raw(0, 0, 0x12, 0x01, 0x01, 0x26, 0xFA), 0);
-        let implausible_century = decode(raw(0, 0, 0x12, 0x01, 0x01, 0x26, 0x18), 0);
+        let no_century_2069 = decode(raw(0, 0, 0x92, 0x01, 0x01, 0x69, 0x00), 0);
+        let no_century_1970 = decode(raw(0, 0, 0x92, 0x01, 0x01, 0x70, 0x00), 0);
+        let invalid_bcd_century = decode(raw(0, 0, 0x92, 0x01, 0x01, 0x26, 0xFA), 0);
+        let implausible_century = decode(raw(0, 0, 0x92, 0x01, 0x01, 0x26, 0x18), 0);
         assert_eq!(no_century_2069, Some(expected(2069, 1, 1, 12, 0, 0)));
         assert_eq!(no_century_1970, Some(expected(1970, 1, 1, 12, 0, 0)));
         assert_eq!(invalid_bcd_century, Some(expected(2026, 1, 1, 12, 0, 0)));
