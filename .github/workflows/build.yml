@@ -100,6 +100,8 @@ jobs:
           grep -F "Interrupts: keyboard IRQ1 enabled" build/serial.log
           grep -F "Memory map entries:" build/serial.log
           grep -F "Physical bitmap allocator: " build/serial.log
+          grep -F "Virtual memory manager: x86-64 four-level page tables ready" build/serial.log
+          grep -F "Virtual mapping, translation and unmapping test: passed" build/serial.log
           grep -F "Physical bitmap managed frames: " build/serial.log
           grep -F "Physical bitmap capacity: " build/serial.log
           grep -F "Physical frame allocator: allocated frame at" build/serial.log

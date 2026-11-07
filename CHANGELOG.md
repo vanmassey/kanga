@@ -2,6 +2,23 @@
 
 All notable Kanga changes are recorded here.
 
+## Unreleased (0.2.0 development)
+
+### Added
+
+- Initial x86-64 four-level virtual memory manager using the active CR3 page-table hierarchy.
+- Page-table entry and 4 KiB-aligned page-table types, hardware mapping flags, 4 KiB map/unmap operations, virtual-to-physical translation and TLB invalidation.
+- Allocation and zero-initialisation of missing intermediate page tables using the physical frame allocator.
+- Boot-time virtual mapping, translation and unmapping self-test.
+
+### Limitations
+
+- The manager edits the active boot address space; independent address spaces and CR3 switching are not implemented.
+- Empty page-table frames are not reclaimed.
+- Page-table and physical allocator spin locks are not IRQ-safe.
+- The no-execute flag requires EFER.NXE to be enabled before use.
+- The physical frame bitmap still manages addresses below 4 GiB only.
+
 ## [0.1.0] - 2026-11-06
 
 First experimental milestone of the independent Kanga x86-64 operating-system project.

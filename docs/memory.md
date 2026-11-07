@@ -26,16 +26,35 @@ Kanga requests Limine's higher-half direct map (HHDM). The response supplies an 
 
 The conversion helper checks for integer overflow. It does not itself prove that an arbitrary physical address is mapped or safe to access; callers must own the corresponding memory and ensure it is covered by the direct map.
 
+## x86-64 virtual memory manager
+
+The virtual memory manager in `kernel/src/paging.rs` operates on the active four-level x86-64 page-table hierarchy supplied at boot. It reads CR3 to locate the PML4 and uses the HHDM to access physical page-table frames.
+
+- `PageTableEntry` represents a hardware entry and exposes its present, writable, user, no-execute, huge-page and physical-address fields.
+- `PageTable` is a 4 KiB-aligned structure containing 512 entries.
+- `PageFlags` provides present, writable, user, write-through, cache-disable, accessed, dirty, global and no-execute flags.
+- Missing intermediate tables are allocated as physical frames, zeroed and linked into the active hierarchy.
+- `map_page` installs a 4 KiB mapping after checking canonical virtual addresses, alignment, physical-address width and flags.
+- `unmap_page` clears a 4 KiB leaf mapping and returns its physical frame address. It does not free that frame.
+- `translate` walks the hierarchy and translates 4 KiB, 2 MiB and 1 GiB mappings.
+- Mapping changes invalidate the affected virtual address with INVLPG.
+- Existing huge-page entries are detected; the 4 KiB mapping API will not overwrite them.
+
+The manager is initialised after the physical frame allocator and HHDM are ready. A boot-time self-test creates a temporary mapping, verifies translation, removes the mapping and returns its data frame. The intermediate page-table frames created by that test are retained.
+
+The manager's page-table lock and the physical allocator's lock are spin locks, not IRQ-safe locks. Do not call these operations from an interrupt handler that can pre-empt code holding either lock. The manager currently edits the active boot address space; it does not yet create independent process address spaces, reclaim empty page-table frames, or provide a kernel heap. The no-execute flag also depends on the CPU's EFER.NXE feature being enabled; callers must not request it until that architectural setup is implemented.
+
 ## Boot-time allocator checks
 
-During QEMU boot, Kanga allocates three distinct frames, verifies direct-map memory access, returns and reuses a frame, deliberately attempts a duplicate free, allocates a three-frame contiguous run, returns all diagnostic frames, and checks that the final free-frame count matches the initial count. The QEMU smoke test checks the serial output for successful allocation, memory-access, double-free rejection, contiguous allocation and allocator-integrity diagnostics.
+During QEMU boot, Kanga allocates three distinct frames, verifies direct-map memory access, returns and reuses a frame, deliberately attempts a duplicate free, allocates a three-frame contiguous run, returns all diagnostic frames, and checks that the final free-frame count matches the initial count. The virtual-memory self-test additionally exercises page-table creation, mapping, translation and unmapping. The QEMU smoke test checks the serial output for successful diagnostics.
 
 ## Remaining work
 
 - IRQ-safe locking and allocation entry points;
 - allocating frames above the current 4 GiB bitmap limit;
-- a page-table abstraction and controlled mapping changes;
-- mapping and unmapping virtual pages with TLB invalidation;
+- independent address spaces and safe CR3 switching;
+- safe reclamation of empty page-table frames;
+- architectural setup and validation for the no-execute feature;
 - a kernel heap backed by allocated frames; and
 - controlled handling of bootloader-reclaimable memory after the bootloader data is no longer needed.
 

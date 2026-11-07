@@ -12,8 +12,11 @@ Kanga currently provides:
 - COM1 serial diagnostics and mirrored shell output;
 - Limine memory-map reporting and a bitmap physical-frame allocator for page-aligned 4 KiB frames below 4 GiB;
 - a higher-half direct-map address conversion helper and boot-time frame read/write checks;
+- an x86-64 four-level virtual memory manager using the active CR3 page-table hierarchy;
+- page-table entry and page-table types, 4 KiB mapping and unmapping, virtual-to-physical translation, and TLB invalidation;
+- boot-time virtual mapping, translation and unmapping validation;
 - a 32-bit RGB framebuffer console with an 8x16 VGA-compatible font;
-- a black console background, light-grey default text, and ANSI SGR standard/bright 16-colour foreground and background rendering;
+- a black console background, light-grey default text, and ANSI SGR standard/bright 16-colour foreground/background rendering;
 - line wrapping, backspace, clear-screen, a prompt cursor, and 128 lines of scrollback;
 - interrupt-driven PS/2 keyboard input through IRQ1;
 - a 256-entry IDT with fatal CPU exception handlers for vectors 0–31;
@@ -61,7 +64,7 @@ The ISO build downloads a pinned Limine 12.9.6 binary release and verifies its S
 
 ## Automated validation
 
-GitHub Actions checks shell-script syntax and Rust formatting, builds the bootable ISO, and boots Kanga in QEMU. It injects shell commands through the virtual keyboard and verifies boot diagnostics, memory allocator checks, clock output, RAM filesystem operations and shell output over serial. It captures live, HELP, scrollback and ANSI-colour framebuffer screenshots, checks that the images are non-blank, and verifies the expected ANSI palette colours. The workflow uploads the ISO, serial log and screenshots as an artifact.
+GitHub Actions checks shell-script syntax and Rust formatting, builds the bootable ISO, and boots Kanga in QEMU. It injects shell commands through the virtual keyboard and verifies boot diagnostics, physical and virtual memory allocator checks, clock output, RAM filesystem operations and shell output over serial. It captures live, HELP, scrollback and ANSI-colour framebuffer screenshots, checks that the images are non-blank, and verifies the expected ANSI palette colours. The workflow uploads the ISO, serial log and screenshots as an artifact.
 
 ### Inspecting a saved serial log
 
@@ -81,11 +84,11 @@ A successful inspection only confirms that the listed messages appear in the sav
 
 ## Known limitations
 
-Kanga 0.1.0 is an experimental kernel milestone, not a general-purpose operating system. It has no virtual-memory manager or kernel heap, process or thread scheduler, user mode, system-call interface, persistent disk filesystem, PCI device discovery, general IRQ dispatcher, APIC/IOAPIC support, networking, USB stack, desktop or graphical window system. The physical-frame bitmap manages addresses below 4 GiB. The shared allocator uses a spin lock that must not be acquired from an interrupt handler that can interrupt a lock holder. QEMU validation does not establish compatibility with physical machines; hardware support must be tested separately.
+Kanga 0.1.0 is an experimental kernel milestone, not a general-purpose operating system. The current 0.2.0 development branch has an initial virtual-memory manager, but it does not yet provide independent process address spaces, safe page-table reclamation, a kernel heap, multitasking, user mode or a system-call interface. Other missing components include a persistent disk filesystem, PCI device discovery, a general IRQ dispatcher, APIC/IOAPIC support, networking, USB stack, desktop or graphical window system. The physical-frame bitmap manages addresses below 4 GiB. The physical allocator and page-table manager use spin locks that must not be acquired from an interrupt handler that can interrupt a lock holder. The no-execute PTE flag must not be used until EFER.NXE is enabled. QEMU validation does not establish compatibility with physical machines; hardware support must be tested separately.
 
 ## Development roadmap
 
-Development is moving towards **Kanga 0.2.0**. The next milestone focuses on kernel reliability, interrupt-safe synchronisation, virtual memory and a kernel heap, PCI device discovery, and storage/filesystem foundations.
+Development is moving towards **Kanga 0.2.0**. The next milestone focuses on kernel reliability, interrupt-safe synchronisation, completing virtual memory and a kernel heap, PCI device discovery, and storage/filesystem foundations.
 
 See the [Kanga 0.2.0 roadmap](ROADMAP.md) for planned work and completion criteria. These are development goals, not claims that the features are already implemented.
 

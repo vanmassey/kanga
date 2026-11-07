@@ -12,7 +12,9 @@ The PS/2 keyboard is delivered through legacy IRQ1. The interrupt handler copies
 
 The kernel installs a 256-entry IDT with ABI-correct exception gates for CPU exception vectors 0–31. Fatal exceptions are reported over serial before the processor halts. The dual 8259 PIC is remapped to vectors 0x20–0x2F, with IRQ0 (PIT) and IRQ1 (keyboard) unmasked. The PIT channel 0 runs at 100 Hz; its handler increments an atomic tick counter and acknowledges the master PIC. The shell reports uptime and timer ticks. A CMOS RTC reader waits for update cycles to finish, takes matching snapshots, handles BCD/binary and 12/24-hour modes, validates calendar fields and exposes the clock through DATE. APIC routing and a general IRQ dispatcher remain unimplemented.
 
-The physical frame allocator uses a static bitmap for page-aligned 4 KiB frames below 4 GiB. It reserves the first MiB, supports individual and contiguous allocations, rejects duplicate frees and performs boot-time allocation, reuse, contiguous-run and memory-access checks. The shared allocator service serialises access with a spin lock. This lock is not IRQ-safe: code must not acquire it from an interrupt handler that could interrupt a lock holder. See [memory.md](memory.md) for details.
+The physical frame allocator uses a static bitmap for page-aligned 4 KiB frames below 4 GiB. It reserves the first MiB, supports individual and contiguous allocations, rejects duplicate frees and performs boot-time allocation, reuse, contiguous-run and memory-access checks. The shared allocator service serialises access with a spin lock. This lock is not IRQ-safe: code must not acquire it from an interrupt handler that could interrupt a lock holder.
+
+The virtual-memory subsystem uses the active CR3 root and a four-level x86-64 page-table walk. It provides PTE and page-table types, creates missing intermediate tables using the physical frame allocator, maps and unmaps 4 KiB pages, translates virtual addresses (including existing huge-page mappings), and invalidates the TLB after changes. A boot-time self-test exercises a temporary mapping. The page-table lock is also not IRQ-safe. Independent address spaces, safe page-table reclamation, and a kernel heap are not implemented. See [memory.md](memory.md) for details and limitations.
 
 KangaFS is a fixed-capacity in-memory filesystem with a root directory, sixteen file slots, filenames up to 24 characters and file contents up to 256 bytes. Its contents are volatile and are lost when the kernel stops or reboots.
 
@@ -21,7 +23,7 @@ KangaFS is a fixed-capacity in-memory filesystem with a root directory, sixteen 
 | Component | Responsibility |
 | --- | --- |
 | Architecture | CPU setup, descriptor tables, interrupt controllers and low-level I/O |
-| Memory | Page-table management, virtual address spaces and a kernel heap |
+| Memory | Independent virtual address spaces, frame reclamation and a kernel heap |
 | Interrupts | General IRQ dispatch, spurious IRQ handling and APIC/IOAPIC support |
 | Drivers | PCI discovery and device drivers |
 | Tasks | Kernel threads, processes and scheduling |
@@ -33,7 +35,7 @@ KangaFS is a fixed-capacity in-memory filesystem with a root directory, sixteen 
 
 1. Harden CPU and boot setup, including descriptor tables and exception diagnostics.
 2. Build a general IRQ dispatcher with spurious IRQ handling; add APIC/IOAPIC support when appropriate.
-3. Complete physical and virtual memory management, including page-table control, frame reclamation and a kernel heap.
+3. Complete physical and virtual memory management, including independent address spaces, safe page-table reclamation and a kernel heap.
 4. Add PCI enumeration and reliable device drivers, starting with storage and virtualised QEMU devices.
 5. Build a block-device layer, partition discovery, VFS and an initial persistent filesystem.
 6. Add kernel threads and scheduling, then user mode, system calls and an ELF loader.

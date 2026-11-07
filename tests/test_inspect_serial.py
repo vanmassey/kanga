@@ -14,6 +14,8 @@ GOOD_LOG = """Kanga kernel entry reached
 Interrupts: 256-entry IDT installed
 Memory map entries: 4
 Physical bitmap allocator: ready
+Virtual memory manager: x86-64 four-level page tables ready
+Virtual mapping, translation and unmapping test: passed
 Frame allocator integrity test: passed
 Frame memory test: passed
 Display: framebuffer text console ready
@@ -38,7 +40,7 @@ class SerialInspectorTests(unittest.TestCase):
     def test_all_checkpoints_pass(self):
         result = self.run_inspector(GOOD_LOG)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("all 9 checks found", result.stdout)
+        self.assertIn("all 11 checks found", result.stdout)
         self.assertNotIn("MISS", result.stdout)
 
     def test_missing_checkpoint_is_reported(self):

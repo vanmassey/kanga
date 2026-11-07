@@ -31,8 +31,9 @@ The central goal for 0.2.0 is to make the kernel's foundations safer and more ex
 
 ### 3. Memory management
 
-- Introduce a page-table abstraction for inspecting and changing virtual-memory mappings.
-- Add controlled page mapping and unmapping, with appropriate TLB invalidation.
+- [x] Introduce an initial x86-64 page-table abstraction for inspecting and changing mappings in the active boot address space.
+- [x] Add 4 KiB page mapping and unmapping, virtual-to-physical translation and local TLB invalidation, with a boot-time mapping self-test.
+- Complete independent address spaces, safe CR3 switching and page-table frame reclamation.
 - Improve physical-frame allocator tests, including exhaustion, invalid ranges, contiguous allocations and reclamation.
 - Design a route to manage usable physical memory above the current 4 GiB bitmap limit.
 - Implement a small kernel heap backed by physical frames and virtual mappings.
