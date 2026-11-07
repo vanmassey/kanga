@@ -116,15 +116,15 @@ jobs:
           grep -F "Frame memory test: passed" build/serial.log
           grep -F "Display: ANSI colour framebuffer text console" build/serial.log
           grep -F "Display: framebuffer text console ready" build/serial.log
-          grep -F "Initialising keyboard...... " build/serial.log
-          grep -F "Starting command shell..... " build/serial.log
-          grep -F "Type HELP for a list of commands." build/serial.log
-          grep -F "Kanga OS 0.1.0" build/serial.log
+          grep -F "| PS/2 keyboard" build/serial.log
+          grep -F "| Command interpreter" build/serial.log
+          grep -F "Type HELP to browse commands." build/serial.log
+          grep -F "Kanga OS  |  x86_64  |  Limine boot protocol" build/serial.log
           grep -F "This program comes with ABSOLUTELY NO WARRANTY." build/serial.log
           grep -F "You may redistribute it under the GNU GPL version 2." build/serial.log
           grep -F "License: https://github.com/vanmassey/kanga/blob/main/LICENSE" build/serial.log
-          grep -F "Kanga DOS-style command shell" build/serial.log
-          grep -F "KangaFS RAM filesystem..... " build/serial.log
+          grep -F "KANGA COMMAND REFERENCE" build/serial.log
+          grep -F "| KangaFS RAM filesystem" build/serial.log
           grep -F "Saved note.txt (16 bytes)." build/serial.log
           grep -F "hello from kanga" build/serial.log
           grep -F "Deleted note.txt." build/serial.log
