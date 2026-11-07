@@ -6,7 +6,7 @@ use crate::filesystem::{self, FileSystem};
 use crate::graphics::Console;
 use crate::keyboard::{self, Key};
 
-const LINE_CAPACITY: usize = 80;
+const LINE_CAPACITY: usize = 256;
 
 struct Output<'a>(Option<&'a mut Console>);
 
@@ -22,28 +22,52 @@ impl Write for Output<'_> {
 
 pub fn run(mut console: Option<Console>) -> ! {
     {
+        let width = console
+            .as_ref()
+            .map_or(80, |display| display.columns().clamp(64, 160));
         let mut output = Output(console.as_mut());
-        let _ = writeln!(output, "\x1b[1;36mKanga OS 0.1.0\x1b[0m");
-        let _ = writeln!(output, "(C) 2026 Kanga Development Team");
-        let _ = writeln!(output, "This program comes with ABSOLUTELY NO WARRANTY.");
-        let _ = writeln!(
-            output,
-            "You may redistribute it under the GNU GPL version 2."
+        draw_rule(&mut output, width);
+        draw_centered(&mut output, width, "\x1b[1;36mKANGA OS\x1b[0m");
+        draw_centered(&mut output, width, "SYSTEM CONSOLE");
+        draw_rule(&mut output, width);
+        draw_panel_line(
+            &mut output,
+            width,
+            "Kanga OS  |  x86_64  |  Limine boot protocol",
         );
-        let _ = writeln!(
-            output,
-            "License: https://github.com/vanmassey/kanga/blob/main/LICENSE"
+        draw_panel_line(&mut output, width, "(C) 2026 Kanga Development Team");
+        draw_panel_line(
+            &mut output,
+            width,
+            "This program comes with ABSOLUTELY NO WARRANTY.",
         );
-        let _ = writeln!(output);
-        let _ = writeln!(output, "Initialising kernel........ \x1b[32m[ OK ]\x1b[0m");
-        let _ = writeln!(output, "Setting up interrupts...... \x1b[32m[ OK ]\x1b[0m");
-        let _ = writeln!(output, "Initialising keyboard...... \x1b[32m[ OK ]\x1b[0m");
-        let _ = writeln!(output, "Starting command shell..... \x1b[32m[ OK ]\x1b[0m");
-        let _ = writeln!(output, "KangaFS RAM filesystem..... \x1b[32m[ OK ]\x1b[0m");
-        let _ = writeln!(output);
-        let _ = writeln!(output, "Type HELP for a list of commands.");
-        let _ = writeln!(output);
-        let _ = write!(output, "Kanga> ");
+        draw_panel_line(
+            &mut output,
+            width,
+            "You may redistribute it under the GNU GPL version 2.",
+        );
+        draw_panel_line(
+            &mut output,
+            width,
+            "License: https://github.com/vanmassey/kanga/blob/main/LICENSE",
+        );
+        draw_rule(&mut output, width);
+        draw_panel_line(&mut output, width, "KERNEL STARTUP");
+        draw_status(&mut output, width, "Kernel core", "READY");
+        draw_status(&mut output, width, "Interrupt controller", "READY");
+        draw_status(&mut output, width, "PS/2 keyboard", "READY");
+        draw_status(&mut output, width, "KangaFS RAM filesystem", "READY");
+        draw_status(&mut output, width, "Command interpreter", "READY");
+        draw_rule(&mut output, width);
+        draw_panel_line(&mut output, width, "COMMAND INTERFACE");
+        draw_panel_line(&mut output, width, "Type HELP to browse commands.");
+        draw_panel_line(
+            &mut output,
+            width,
+            "Use the Up and Down arrows to navigate scrollback.",
+        );
+        draw_rule(&mut output, width);
+        let _ = write!(output, "\x1b[1;36mKanga> \x1b[0m");
     }
 
     let mut line = [0_u8; LINE_CAPACITY];
@@ -83,7 +107,7 @@ pub fn run(mut console: Option<Console>) -> ! {
                     execute(&line[..length], console.as_mut(), &mut filesystem);
                     length = 0;
                     let mut output = Output(console.as_mut());
-                    let _ = write!(output, "Kanga> ");
+                    let _ = write!(output, "\x1b[1;36mKanga> \x1b[0m");
                 }
                 Key::ArrowUp => {
                     if let Some(console) = console.as_mut() {
@@ -106,6 +130,60 @@ pub fn run(mut console: Option<Console>) -> ! {
     }
 }
 
+fn draw_rule(output: &mut Output<'_>, width: usize) {
+    let _ = write!(output, "\x1b[1;36m+");
+    for _ in 0..width.saturating_sub(2) {
+        let _ = write!(output, "-");
+    }
+    let _ = writeln!(output, "+\x1b[0m");
+}
+
+fn draw_centered(output: &mut Output<'_>, width: usize, text: &str) {
+    let visible_width = text
+        .strip_prefix("\x1b[1;36m")
+        .and_then(|value| value.strip_suffix("\x1b[0m"))
+        .map_or(text.len(), str::len);
+    let inner_width = width.saturating_sub(4);
+    let padding = inner_width.saturating_sub(visible_width);
+    let left = padding / 2;
+    let right = padding.saturating_sub(left);
+    let _ = write!(output, "| ");
+    for _ in 0..left {
+        let _ = write!(output, " ");
+    }
+    let _ = write!(output, "{text}");
+    for _ in 0..right {
+        let _ = write!(output, " ");
+    }
+    let _ = writeln!(output, " |");
+}
+
+fn draw_panel_line(output: &mut Output<'_>, width: usize, text: &str) {
+    let inner_width = width.saturating_sub(4);
+    let visible = text.len().min(inner_width);
+    let _ = write!(output, "| ");
+    let _ = output.write_str(&text[..visible]);
+    for _ in visible..inner_width {
+        let _ = write!(output, " ");
+    }
+    let _ = writeln!(output, " |");
+}
+
+fn draw_status(output: &mut Output<'_>, width: usize, name: &str, status: &str) {
+    let inner_width = width.saturating_sub(4);
+    let label_width = inner_width.saturating_sub(status.len() + 3);
+    let label = if name.len() > label_width {
+        &name[..label_width]
+    } else {
+        name
+    };
+    let _ = write!(output, "| {label}");
+    for _ in label.len()..label_width {
+        let _ = write!(output, ".");
+    }
+    let _ = writeln!(output, " \x1b[32m[{status}]\x1b[0m |");
+}
+
 fn execute(command_line: &[u8], console: Option<&mut Console>, filesystem: &mut FileSystem) {
     let command_line = trim(command_line);
     let split = command_line
@@ -121,27 +199,33 @@ fn execute(command_line: &[u8], console: Option<&mut Console>, filesystem: &mut 
     }
 
     if command.eq_ignore_ascii_case(b"help") || command == b"/?" {
-        let _ = writeln!(output, "Kanga DOS-style command shell");
-        let _ = writeln!(output, "DIR       list files in KangaFS");
+        let _ = writeln!(output, "\x1b[1;36mKANGA COMMAND REFERENCE\x1b[0m");
+        let _ = writeln!(output);
+        let _ = writeln!(output, "\x1b[1;36mFILES AND STORAGE\x1b[0m");
+        let _ = writeln!(output, "  DIR       List files in KangaFS");
         let _ = writeln!(
             output,
-            "WRITE     create or replace a file: WRITE name.txt text"
+            "  WRITE     Create or replace a file: WRITE name.txt text"
         );
-        let _ = writeln!(output, "TYPE      display a file: TYPE name.txt");
-        let _ = writeln!(output, "DEL       delete a file: DEL name.txt");
-        let _ = writeln!(output, "FSINFO    show KangaFS capacity and status");
-        let _ = writeln!(output, "CLS       clear the screen");
-        let _ = writeln!(output, "VER       display the Kanga version");
-        let _ = writeln!(output, "ECHO      display a message");
-        let _ = writeln!(output, "INFO      show kernel and platform details");
-        let _ = writeln!(output, "MEM       show memory support status");
-        let _ = writeln!(output, "TIME      show system uptime and timer ticks");
-        let _ = writeln!(output, "DATE      show the CMOS real-time clock");
-        let _ = writeln!(output, "UPTIME    show system uptime");
-        let _ = writeln!(output, "ABOUT     show project information");
-        let _ = writeln!(output, "CAL       display the current month calendar");
-        let _ = writeln!(output, "HELP      display this help");
-        let _ = writeln!(output, "HALT      stop the processor");
+        let _ = writeln!(output, "  TYPE      Display a file: TYPE name.txt");
+        let _ = writeln!(output, "  DEL       Delete a file: DEL name.txt");
+        let _ = writeln!(output, "  FSINFO    Show filesystem capacity and status");
+        let _ = writeln!(output);
+        let _ = writeln!(output, "\x1b[1;36mSYSTEM INFORMATION\x1b[0m");
+        let _ = writeln!(output, "  INFO      Show kernel and platform details");
+        let _ = writeln!(output, "  MEM       Show kernel heap statistics");
+        let _ = writeln!(output, "  TIME      Show uptime and timer ticks");
+        let _ = writeln!(output, "  DATE      Show the CMOS real-time clock");
+        let _ = writeln!(output, "  UPTIME    Show system uptime");
+        let _ = writeln!(output, "  VER       Display the Kanga version");
+        let _ = writeln!(output, "  ABOUT     Show project information");
+        let _ = writeln!(output, "  CAL       Display the current month calendar");
+        let _ = writeln!(output);
+        let _ = writeln!(output, "\x1b[1;36mSHELL\x1b[0m");
+        let _ = writeln!(output, "  ECHO      Display a message");
+        let _ = writeln!(output, "  CLS       Clear the screen");
+        let _ = writeln!(output, "  HELP      Display this command reference");
+        let _ = writeln!(output, "  HALT      Stop the processor");
     } else if command.eq_ignore_ascii_case(b"dir") {
         let _ = writeln!(output, " Directory of KANGA:\\");
         let _ = writeln!(output);
@@ -268,11 +352,34 @@ fn execute(command_line: &[u8], console: Option<&mut Console>, filesystem: &mut 
             "There is no warranty; see the LICENSE file for terms."
         );
     } else if command.eq_ignore_ascii_case(b"mem") {
-        let _ = writeln!(output, "Physical frame allocation: initial 4 KiB allocator");
-        let _ = writeln!(
-            output,
-            "Frame reclamation, virtual memory and heap: not implemented"
-        );
+        let _ = writeln!(output, "PHYSICAL MEMORY");
+        let _ = writeln!(output, "  Frame size: 4 KiB");
+        let _ = writeln!(output, "  Allocator: bitmap-backed, up to 64 GiB");
+        let _ = writeln!(output, "  Virtual memory: x86-64 four-level page tables");
+        if let Some(stats) = crate::heap::statistics() {
+            let _ = writeln!(output);
+            let _ = writeln!(output, "KERNEL HEAP");
+            let _ = writeln!(output, "  Mapped:       {} KiB", stats.mapped_bytes / 1024);
+            let _ = writeln!(
+                output,
+                "  Occupied:     {} KiB",
+                stats.occupied_bytes / 1024
+            );
+            let _ = writeln!(output, "  Free:         {} KiB", stats.free_bytes / 1024);
+            let _ = writeln!(
+                output,
+                "  Largest free: {} KiB",
+                stats.largest_free_block / 1024
+            );
+            let _ = writeln!(output, "  Free blocks:  {}", stats.free_block_count);
+            let _ = writeln!(
+                output,
+                "  Fragmented:   {} bytes",
+                stats.fragmented_free_bytes
+            );
+        } else {
+            let _ = writeln!(output, "Kernel heap statistics are not available.");
+        }
     } else if command.eq_ignore_ascii_case(b"halt") {
         let _ = writeln!(output, "Halting Kanga.");
         loop {
