@@ -61,3 +61,9 @@ During QEMU boot, Kanga allocates three distinct frames, verifies direct-map mem
 ## Framebuffer and graphical boot screen
 
 Kanga requests a framebuffer from Limine and uses the first supplied display. The renderer accepts 32-bit RGB framebuffers and validates dimensions and pitch. Pixel offsets use the hardware pitch, and scrolling copies one physical framebuffer row at a time using that pitch, including any row padding. The console renders an 8x16 VGA-compatible font and supports wrapping, backspace, clearing, scrolling and ANSI SGR foreground/background colours. It remains a basic text console without cursor positioning, true-colour SGR, graphics acceleration, multiple-display support or mode setting.
+
+## Kernel heap
+
+The initial kernel heap reserves sixteen contiguous 4 KiB physical frames (64 KiB) from the bitmap allocator and accesses them through Limine's higher-half direct map. It provides an explicit, zero-initialising allocation API with alignment support, free-list splitting, deallocation and adjacent-block coalescing. A boot-time self-test exercises alignment, zeroing, reuse and reclamation.
+
+This is deliberately not registered as Rust's process-wide GlobalAlloc yet. Kernel subsystems must opt in explicitly until allocation is safe in all interrupt, panic and early-boot contexts. The first implementation has a fixed 64 KiB capacity and requires a physically contiguous run; heap growth and virtual-page-backed expansion remain future work.
