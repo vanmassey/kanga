@@ -182,7 +182,7 @@ pub fn initialise() {
         set_gate(idt, 29, exception_29 as *const () as usize, selector, 0);
         set_gate(idt, 30, exception_30 as *const () as usize, selector, 0);
         set_gate(idt, 31, exception_31 as *const () as usize, selector, 0);
-        set_gate(idt, 0x20, timer_irq as *const () as usize, selector, 0);
+        set_gate(idt, 0x20, crate::scheduler::timer_interrupt_entry as *const () as usize, selector, 0);
         set_gate(idt, 0x21, keyboard_irq as *const () as usize, selector, 0);
 
         let pointer = IdtPointer {
@@ -299,11 +299,6 @@ fn install_tss() -> bool {
 unsafe fn stack_top(stack: *mut EmergencyStack) -> u64 {
     // SAFETY: The stack is a static, correctly aligned object of fixed size.
     unsafe { (*stack).0.as_mut_ptr().add(EMERGENCY_STACK_SIZE) as u64 }
-}
-
-extern "x86-interrupt" fn timer_irq(_frame: InterruptStackFrame) {
-    crate::pit::handle_interrupt();
-    crate::pic::acknowledge_master_irq();
 }
 
 extern "x86-interrupt" fn keyboard_irq(_frame: InterruptStackFrame) {
