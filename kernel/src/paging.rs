@@ -13,7 +13,6 @@ use crate::memory::{self, PAGE_SIZE};
 
 const ENTRIES_PER_TABLE: usize = 512;
 const ADDRESS_MASK: u64 = 0x000f_ffff_ffff_f000;
-const ENTRY_FLAGS_MASK: u64 = !ADDRESS_MASK;
 const HUGE_PAGE: u64 = 1 << 7;
 const NX: u64 = 1 << 63;
 
@@ -187,7 +186,7 @@ pub fn map_page(
             let frame = allocate_table_frame()?;
             let child = physical_to_table(frame)?;
             // SAFETY: The frame was freshly allocated and is exclusively owned.
-            unsafe { core::ptr::write_bytes(child, 0, 1) };
+            unsafe { core::ptr::write_bytes(child.cast::<u8>(), 0, PAGE_SIZE as usize) };
             let new_entry = PageTableEntry::table(frame, user);
             // SAFETY: This table is active and the entry is currently not present.
             unsafe {
@@ -317,8 +316,9 @@ fn validate_addresses(virtual_address: u64, physical_address: u64) -> Result<(),
 }
 
 const fn is_canonical(address: u64) -> bool {
+    let sign = (address >> 47) & 1;
     let upper = address >> 48;
-    upper == 0 || upper == 0xffff
+    (sign == 0 && upper == 0) || (sign == 1 && upper == 0xffff)
 }
 
 const fn page_indices(address: u64) -> [usize; 4] {
