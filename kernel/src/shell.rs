@@ -219,6 +219,7 @@ fn execute(command_line: &[u8], console: Option<&mut Console>, filesystem: &mut 
         let _ = writeln!(output, "\x1b[1;36mSYSTEM INFORMATION\x1b[0m");
         let _ = writeln!(output, "  INFO      Show kernel and platform details");
         let _ = writeln!(output, "  MEM       Show kernel heap statistics");
+        let _ = writeln!(output, "  TASKS     Inspect kernel threads and scheduler activity");
         let _ = writeln!(output, "  TIME      Show uptime and timer ticks");
         let _ = writeln!(output, "  DATE      Show the CMOS real-time clock");
         let _ = writeln!(output, "  UPTIME    Show system uptime");
@@ -356,6 +357,18 @@ fn execute(command_line: &[u8], console: Option<&mut Console>, filesystem: &mut 
             output,
             "There is no warranty; see the LICENSE file for terms."
         );
+    } else if command.eq_ignore_ascii_case(b"tasks") {
+        let (current, switches, worker_a, worker_b) = crate::scheduler::statistics();
+        let _ = writeln!(output, "KERNEL THREADS");
+        for index in 0..3 {
+            if let Some((name, running)) = crate::scheduler::task_info(index) {
+                let state = if running { "RUNNING" } else { "RUNNABLE" };
+                let _ = writeln!(output, "  Task {index}: {name:<12} [{state}]");
+            }
+        }
+        let _ = writeln!(output, "  Current task: {current}");
+        let _ = writeln!(output, "  Context switches: {switches}");
+        let _ = writeln!(output, "  Worker progress: worker-a={worker_a} worker-b={worker_b}");
     } else if command.eq_ignore_ascii_case(b"mem") {
         let _ = writeln!(output, "PHYSICAL MEMORY");
         let _ = writeln!(output, "  Frame size: 4 KiB");
