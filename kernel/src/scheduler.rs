@@ -126,6 +126,7 @@ global_asm!(
 );
 
 extern "C" {
+    #[link_name = "kanga_timer_interrupt_entry"]
     pub(crate) fn timer_interrupt_entry();
 }
 
