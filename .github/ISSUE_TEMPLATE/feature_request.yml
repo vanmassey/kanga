@@ -1,0 +1,48 @@
+name: Feature request
+description: Suggest a capability or improvement for Kanga.
+title: "[Feature]: "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For substantial architectural changes, please discuss the idea before starting implementation.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What limitation are you trying to solve, and who would benefit?
+      placeholder: I would like Kanga to...
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the behaviour you would like to see. Implementation details are optional.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Are there other approaches or workarounds?
+    validations:
+      required: false
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Suggested scope
+      options:
+        - Kanga 0.2.0
+        - Future release
+        - Not sure
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and the roadmap for a similar proposal.
+          required: true
