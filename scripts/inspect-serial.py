@@ -17,6 +17,8 @@ CHECKPOINTS = (
     "Interrupts: 256-entry IDT installed",
     "Memory map entries:",
     "Physical bitmap allocator:",
+    "Virtual memory manager: x86-64 four-level page tables ready",
+    "Virtual mapping, translation and unmapping test: passed",
     "Frame allocator integrity test: passed",
     "Frame memory test: passed",
     "Display: framebuffer text console ready",
