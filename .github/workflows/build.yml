@@ -74,7 +74,7 @@ jobs:
           printf 'screendump build/kanga-help-screen.ppm\n' |
             socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
 
-          for key in d i r ret v e r ret e c h o spc h e l l o spc k a n g a ret t i m e ret d a t e ret u p t i m e ret w r i t e spc n o t e dot t x t spc h e l l o spc f r o m spc k a n g a ret t y p e spc n o t e dot t x t ret d i r ret d e l spc n o t e dot t x t ret d i r ret; do
+          for key in d i r ret v e r ret e c h o spc h e l l o spc k a n g a ret t i m e ret t a s k s ret d a t e ret u p t i m e ret w r i t e spc n o t e dot t x t spc h e l l o spc f r o m spc k a n g a ret t y p e spc n o t e dot t x t ret d i r ret d e l spc n o t e dot t x t ret d i r ret; do
             printf 'sendkey %s 80\n' "$key" | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
             sleep 0.15
           done
@@ -100,6 +100,10 @@ jobs:
           grep -F "Interrupts: CPU exception gates 0-31 configured" build/serial.log
           grep -F "Interrupts: PIC remapped; timer IRQ0 and keyboard IRQ1 unmasked" build/serial.log
           grep -F "Timer: PIT configured at 100 Hz" build/serial.log
+          grep -F "Scheduler: pre-emptive round-robin enabled (3 kernel threads)" build/serial.log
+          grep -F "Task 1: worker-a" build/serial.log
+          grep -F "Task 2: worker-b" build/serial.log
+          grep -E "Worker progress: worker-a=[1-9][0-9]* worker-b=[1-9][0-9]*" build/serial.log
           grep -F "Interrupts: keyboard IRQ1 enabled" build/serial.log
           grep -F "Memory map entries:" build/serial.log
           grep -F "Physical bitmap allocator: " build/serial.log
