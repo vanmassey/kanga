@@ -10,9 +10,14 @@ use core::ptr;
 use core::sync::atomic::{AtomicBool, Ordering};
 
 use crate::memory::{self, PAGE_SIZE};
+use crate::paging::{self, MappingError, PageFlags};
 
-const HEAP_PAGES: usize = 16;
-const HEAP_BYTES: usize = HEAP_PAGES * PAGE_SIZE as usize;
+const HEAP_BASE: u64 = 0xffff_9000_0000_0000;
+const INITIAL_HEAP_PAGES: usize = 16;
+const GROWTH_HEAP_PAGES: usize = 64;
+const MAX_HEAP_PAGES: usize = 4096;
+const INITIAL_HEAP_BYTES: usize = INITIAL_HEAP_PAGES * PAGE_SIZE as usize;
+const MAX_HEAP_BYTES: usize = MAX_HEAP_PAGES * PAGE_SIZE as usize;
 
 #[repr(C)]
 struct FreeBlock {
@@ -29,6 +34,7 @@ struct AllocationHeader {
 struct HeapState {
     start: usize,
     end: usize,
+    limit: usize,
     free: *mut FreeBlock,
 }
 
@@ -110,46 +116,35 @@ impl Drop for HeapGuard<'_> {
 
 static HEAP: HeapLock = HeapLock::new();
 
-/// Initialise a 64 KiB heap from sixteen contiguous physical frames.
-pub fn initialise(hhdm_offset: u64) -> bool {
+/// Initialise a virtual-page-backed heap with a 64 KiB initial capacity.
+///
+/// The heap occupies a dedicated kernel virtual range. Physical frames are
+/// allocated independently and mapped on demand, so growth does not require
+/// physically contiguous memory.
+pub fn initialise(_hhdm_offset: u64) -> bool {
     let mut state = HEAP.lock();
     if state.is_some() {
         return false;
     }
 
-    let Some(physical) =
-        memory::with_global_allocator(|allocator| allocator.allocate_contiguous(HEAP_PAGES))
-            .flatten()
-    else {
+    let Ok(start) = usize::try_from(HEAP_BASE) else {
         return false;
     };
-
-    let Some(virtual_address) = memory::physical_to_virtual(physical, hhdm_offset) else {
-        release_frames(physical);
+    let Some(end) = start.checked_add(INITIAL_HEAP_BYTES) else {
         return false;
     };
-    let Ok(start) = usize::try_from(virtual_address) else {
-        release_frames(physical);
+    let Some(limit) = start.checked_add(MAX_HEAP_BYTES) else {
         return false;
     };
-    if start % align_of::<FreeBlock>() != 0 {
-        release_frames(physical);
+    if !map_heap_pages(start, INITIAL_HEAP_PAGES) {
         return false;
     }
-    let Some(end) = start.checked_add(HEAP_BYTES) else {
-        release_frames(physical);
-        return false;
-    };
 
-    // SAFETY: These newly allocated contiguous frames are writable via HHDM.
-    unsafe {
-        ptr::write_bytes(start as *mut u8, 0, HEAP_BYTES);
-    }
     let first = start as *mut FreeBlock;
-    // SAFETY: The heap region is aligned and large enough for a free-list node.
+    // SAFETY: The mapped heap range is aligned, writable and large enough.
     unsafe {
         first.write(FreeBlock {
-            size: HEAP_BYTES,
+            size: INITIAL_HEAP_BYTES,
             next: ptr::null_mut(),
         });
     }
@@ -157,31 +152,147 @@ pub fn initialise(hhdm_offset: u64) -> bool {
     *state = Some(HeapState {
         start,
         end,
+        limit,
         free: first,
     });
     true
 }
 
-/// Return all frames in a contiguous heap allocation to the physical allocator.
-fn release_frames(first_frame: u64) {
-    let _ = memory::with_global_allocator(|allocator| {
-        for index in 0..HEAP_PAGES {
-            let Some(offset) = (index as u64).checked_mul(PAGE_SIZE) else {
-                break;
-            };
-            let Some(frame) = first_frame.checked_add(offset) else {
-                break;
-            };
-            // SAFETY: Each frame belongs to the contiguous run allocated above.
-            let _ = unsafe { allocator.deallocate_frame(frame) };
+/// Map newly allocated physical frames into the heap's virtual address range.
+///
+/// On failure, every leaf mapping created by this call is removed and its data
+/// frame is returned. Empty intermediate page tables are retained by paging.
+fn map_heap_pages(start: usize, pages: usize) -> bool {
+    let mut mapped = 0usize;
+    let flags = PageFlags::PRESENT | PageFlags::WRITABLE;
+
+    while mapped < pages {
+        let Some(offset) = mapped.checked_mul(PAGE_SIZE as usize) else {
+            break;
+        };
+        let Some(virtual_address) = start.checked_add(offset) else {
+            break;
+        };
+        if !matches!(
+            paging::translate(virtual_address as u64),
+            Err(MappingError::NotMapped)
+        ) {
+            break;
         }
-    });
+
+        let frame = memory::with_global_allocator(|allocator| allocator.allocate_frame())
+            .flatten();
+        let Some(frame) = frame else {
+            break;
+        };
+        if paging::map_page(virtual_address as u64, frame, flags).is_err() {
+            let _ = memory::with_global_allocator(|allocator| {
+                // SAFETY: The frame was allocated here and mapping did not succeed.
+                unsafe { allocator.deallocate_frame(frame) }
+            });
+            break;
+        }
+
+        // SAFETY: The page has just been mapped writable and is exclusively owned.
+        unsafe {
+            ptr::write_bytes(virtual_address as *mut u8, 0, PAGE_SIZE as usize);
+        }
+        mapped += 1;
+    }
+
+    if mapped == pages {
+        return true;
+    }
+
+    while mapped > 0 {
+        mapped -= 1;
+        let Some(offset) = mapped.checked_mul(PAGE_SIZE as usize) else {
+            return false;
+        };
+        let Some(virtual_address) = start.checked_add(offset) else {
+            return false;
+        };
+        if let Ok(frame) = paging::unmap_page(virtual_address as u64) {
+            let _ = memory::with_global_allocator(|allocator| {
+                // SAFETY: The mapping was removed and the frame is owned by this rollback.
+                unsafe { allocator.deallocate_frame(frame) }
+            });
+        }
+    }
+    false
+}
+
+/// Add another run of virtual pages to the heap, coalescing with its last
+/// free block when the two regions are adjacent.
+fn grow_heap() -> bool {
+    let mut state = HEAP.lock();
+    let Some(heap) = state.as_mut() else {
+        return false;
+    };
+    if heap.end >= heap.limit {
+        return false;
+    }
+
+    let remaining_pages = (heap.limit - heap.end) / PAGE_SIZE as usize;
+    let pages = remaining_pages.min(GROWTH_HEAP_PAGES);
+    let growth_start = heap.end;
+    let Some(growth_bytes) = pages.checked_mul(PAGE_SIZE as usize) else {
+        return false;
+    };
+    let Some(new_end) = growth_start.checked_add(growth_bytes) else {
+        return false;
+    };
+    if !map_heap_pages(growth_start, pages) {
+        return false;
+    }
+
+    let mut last: *mut FreeBlock = ptr::null_mut();
+    let mut current = heap.free;
+    while !current.is_null() {
+        last = current;
+        // SAFETY: Every free-list node is within the mapped heap range.
+        current = unsafe { (*current).next };
+    }
+
+    if !last.is_null()
+        && (last as usize)
+            .checked_add(unsafe { (*last).size })
+            == Some(growth_start)
+    {
+        // SAFETY: The last free block and new pages are adjacent and owned.
+        unsafe {
+            (*last).size += growth_bytes;
+        }
+    } else {
+        let new_block = growth_start as *mut FreeBlock;
+        // SAFETY: The newly mapped range is aligned and large enough for a node.
+        unsafe {
+            new_block.write(FreeBlock {
+                size: growth_bytes,
+                next: ptr::null_mut(),
+            });
+        }
+        if last.is_null() {
+            heap.free = new_block;
+        } else {
+            // SAFETY: last is the final valid node in the free list.
+            unsafe {
+                (*last).next = new_block;
+            }
+        }
+    }
+
+    heap.end = new_end;
+    true
 }
 
 /// Allocate zeroed memory satisfying the requested layout; null means exhaustion.
 pub fn allocate(layout: Layout) -> *mut u8 {
     if layout.size() == 0 {
         return core::ptr::NonNull::<u8>::dangling().as_ptr();
+    }
+    if layout.size() > MAX_HEAP_BYTES {
+        return ptr::null_mut();
     }
 
     let mut state = HEAP.lock();
@@ -294,6 +405,10 @@ pub fn allocate(layout: Layout) -> *mut u8 {
         return payload as *mut u8;
     }
 
+    drop(state);
+    if grow_heap() {
+        return allocate(layout);
+    }
     ptr::null_mut()
 }
 
