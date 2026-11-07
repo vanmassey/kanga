@@ -16,6 +16,7 @@ mod graphics;
 mod interrupts;
 mod keyboard;
 mod memory;
+mod paging;
 mod pic;
 mod pit;
 mod rtc;
@@ -157,6 +158,18 @@ fn report_memory_map() {
         );
         return;
     }
+
+    if !paging::initialise(hhdm_offset) {
+        let _ = writeln!(
+            serial::Writer,
+            "Virtual memory manager: initialisation failed"
+        );
+        return;
+    }
+    let _ = writeln!(
+        serial::Writer,
+        "Virtual memory manager: x86-64 four-level page tables ready"
+    );
 
     let Some(()) = memory::with_global_allocator(|allocator| {
         let initial_free_frames = allocator.free_frame_count();
