@@ -23,6 +23,7 @@ struct FreeBlock {
 #[repr(C)]
 struct AllocationHeader {
     size: usize,
+    requested_size: usize,
 }
 
 struct HeapState {
@@ -283,6 +284,7 @@ pub fn allocate(layout: Layout) -> *mut u8 {
         unsafe {
             (allocation_start as *mut AllocationHeader).write(AllocationHeader {
                 size: allocated_size,
+                requested_size: layout.size(),
             });
         }
         // SAFETY: The returned allocation is exclusively owned and in bounds.
@@ -299,8 +301,8 @@ pub fn allocate(layout: Layout) -> *mut u8 {
 ///
 /// # Safety
 /// Pointer must come from allocate, be live, and be returned exactly once.
-pub unsafe fn deallocate(pointer: *mut u8, _layout: Layout) -> bool {
-    if pointer.is_null() {
+pub unsafe fn deallocate(pointer: *mut u8, layout: Layout) -> bool {
+    if pointer.is_null() || layout.size() == 0 {
         return false;
     }
 
@@ -314,7 +316,11 @@ pub unsafe fn deallocate(pointer: *mut u8, _layout: Layout) -> bool {
     }
 
     // SAFETY: Caller guarantees pointer is a live allocation returned by allocate.
-    let size = unsafe { (*(header_address as *const AllocationHeader)).size };
+    let header = unsafe { &*(header_address as *const AllocationHeader) };
+    let size = header.size;
+    if header.requested_size != layout.size() {
+        return false;
+    }
     let Some(allocation_end) = header_address.checked_add(size) else {
         return false;
     };
