@@ -296,6 +296,10 @@ fn execute(command_line: &[u8], console: Option<&mut Console>, filesystem: &mut 
         let _ = writeln!(output, "  CLS       Clear the screen");
         let _ = writeln!(output, "  HELP      Display this command reference");
         let _ = writeln!(output, "  HALT      Stop the processor");
+        let _ = writeln!(output);
+        let _ = writeln!(output, "\x1b[1;36mKEYBOARD NAVIGATION\x1b[0m");
+        let _ = writeln!(output, "  UP / DOWN       Browse command history");
+        let _ = writeln!(output, "  PAGE UP / DOWN  Browse terminal scrollback");
     } else if command.eq_ignore_ascii_case(b"dir") {
         let _ = writeln!(output, " Directory of KANGA:\\");
         let _ = writeln!(output);
