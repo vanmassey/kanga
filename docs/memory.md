@@ -54,7 +54,7 @@ During QEMU boot, Kanga allocates three distinct frames, verifies direct-map mem
 - independent address spaces and safe CR3 switching;
 - safe reclamation of empty page-table frames;
 - architectural setup and validation for the no-execute feature;
-- growth of the initial heap through virtual-page-backed expansion; and
+- reclaiming unused heap pages and their data frames; and
 - controlled handling of bootloader-reclaimable memory after the bootloader data is no longer needed.
 
 ## Framebuffer and graphical boot screen
@@ -63,6 +63,8 @@ Kanga requests a framebuffer from Limine and uses the first supplied display. Th
 
 ## Kernel heap
 
-The initial kernel heap reserves sixteen contiguous 4 KiB physical frames (64 KiB) from the bitmap allocator and accesses them through Limine's higher-half direct map. It provides an explicit, zero-initialising allocation API with alignment support, free-list splitting, deallocation and adjacent-block coalescing. A boot-time self-test exercises alignment, zeroing, reuse and reclamation.
+The kernel heap reserves a dedicated 16 MiB virtual range and initially maps sixteen 4 KiB pages (64 KiB). Each page is backed by an independently allocated physical frame, so the heap does not require physically contiguous memory. When an allocation cannot fit, the heap maps another 64 pages (256 KiB), up to its 16 MiB limit. Mapping is checked against the active address space before use; partial growth is rolled back by removing leaf mappings and returning their data frames. The paging manager currently retains empty intermediate page tables, including after rollback.
 
-This is deliberately not registered as Rust's process-wide GlobalAlloc yet. Kernel subsystems must opt in explicitly until allocation is safe in all interrupt, panic and early-boot contexts. The first implementation has a fixed 64 KiB capacity and requires a physically contiguous run; heap growth and virtual-page-backed expansion remain future work.
+The allocator provides zero-initialising allocation, alignment support, free-list splitting, deallocation and adjacent-block coalescing. Its boot-time self-test includes a 96 KiB allocation to force heap growth, checks page alignment and zeroing, and exercises reuse and reclamation.
+
+This is deliberately not registered as Rust's process-wide `GlobalAlloc` yet. Kernel subsystems must opt in explicitly until allocation is safe in all interrupt, panic and early-boot contexts. The heap has a fixed 16 MiB virtual limit for now; demand growth, physical-frame reclamation and safe page-table reclamation are separate concerns.
