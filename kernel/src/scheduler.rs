@@ -180,6 +180,31 @@ pub fn initialise() -> bool {
         );
     }
 
+    let worker_a_context = unsafe { build_initial_context(worker_a_stack, worker_a, code_segment) };
+    let worker_b_context = unsafe { build_initial_context(worker_b_stack, worker_b, code_segment) };
+    let worker_a_frame = unsafe {
+        &*((worker_a_context + REGISTER_FRAME_OFFSET) as *const RegisterFrame)
+    };
+    let worker_b_frame = unsafe {
+        &*((worker_b_context + REGISTER_FRAME_OFFSET) as *const RegisterFrame)
+    };
+    let _ = writeln!(
+        crate::serial::Writer,
+        "Scheduler context A: rsp=0x{:016x} rip=0x{:016x} cs=0x{:04x} flags=0x{:x}",
+        worker_a_context,
+        worker_a_frame.instruction_pointer,
+        worker_a_frame.code_segment,
+        worker_a_frame.cpu_flags
+    );
+    let _ = writeln!(
+        crate::serial::Writer,
+        "Scheduler context B: rsp=0x{:016x} rip=0x{:016x} cs=0x{:04x} flags=0x{:x}",
+        worker_b_context,
+        worker_b_frame.instruction_pointer,
+        worker_b_frame.code_segment,
+        worker_b_frame.cpu_flags
+    );
+
     let tasks = unsafe { &mut *TASKS.0.get() };
     tasks[0] = Task {
         name: "bootstrap",
@@ -191,13 +216,13 @@ pub fn initialise() -> bool {
         name: "worker-a",
         priority: 1,
         state: TaskState::Runnable,
-        context: unsafe { build_initial_context(worker_a_stack, worker_a, code_segment) },
+        context: worker_a_context,
     };
     tasks[2] = Task {
         name: "worker-b",
         priority: 1,
         state: TaskState::Runnable,
-        context: unsafe { build_initial_context(worker_b_stack, worker_b, code_segment) },
+        context: worker_b_context,
     };
 
     CURRENT_TASK.store(0, Ordering::Relaxed);
