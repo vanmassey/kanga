@@ -501,10 +501,19 @@ pub fn self_test() -> bool {
     let Ok(second_layout) = Layout::from_size_align(513, 256) else {
         return false;
     };
+    let Ok(growth_layout) = Layout::from_size_align(96 * 1024, 4096) else {
+        return false;
+    };
 
     let first = allocate(first_layout);
     let second = allocate(second_layout);
-    if first.is_null() || second.is_null() || first as usize % 64 != 0 || second as usize % 256 != 0
+    let growth = allocate(growth_layout);
+    if first.is_null()
+        || second.is_null()
+        || growth.is_null()
+        || first as usize % 64 != 0
+        || second as usize % 256 != 0
+        || growth as usize % 4096 != 0
     {
         if !first.is_null() {
             // SAFETY: first is a live allocation created above.
@@ -514,17 +523,22 @@ pub fn self_test() -> bool {
             // SAFETY: second is a live allocation created above.
             let _ = unsafe { deallocate(second, second_layout) };
         }
+        if !growth.is_null() {
+            // SAFETY: growth is a live allocation created above.
+            let _ = unsafe { deallocate(growth, growth_layout) };
+        }
         return false;
     }
 
-    // SAFETY: Both pointers refer to live allocations of the specified sizes.
+    // SAFETY: All pointers refer to live allocations of the specified sizes.
     let zeroed = unsafe {
         (0..127).all(|index| *first.add(index) == 0)
             && (0..513).all(|index| *second.add(index) == 0)
+            && (0..96 * 1024).all(|index| *growth.add(index) == 0)
     };
-    // SAFETY: Both pointers are live and are returned exactly once.
+    // SAFETY: All three allocations are live and are returned exactly once.
+    let freed_growth = unsafe { deallocate(growth, growth_layout) };
     let freed_second = unsafe { deallocate(second, second_layout) };
-    // SAFETY: first is still a live allocation.
     let freed_first = unsafe { deallocate(first, first_layout) };
 
     let reused = allocate(second_layout);
@@ -535,7 +549,7 @@ pub fn self_test() -> bool {
         unsafe { deallocate(reused, second_layout) }
     };
 
-    zeroed && freed_second && freed_first && !reused.is_null() && freed_reused
+    zeroed && freed_growth && freed_second && freed_first && !reused.is_null() && freed_reused
 }
 
 fn align_up(value: usize, alignment: usize) -> Option<usize> {
