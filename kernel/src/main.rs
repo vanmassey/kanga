@@ -324,7 +324,7 @@ fn report_memory_map() {
         "Virtual mapping, translation and unmapping test: {}",
         if paging_ok { "passed" } else { "FAILED" }
     );
-    let heap_ok = heap::initialise(hhdm_offset);
+    let heap_ok = heap::initialise();
     let _ = writeln!(
         serial::Writer,
         "Kernel heap initialisation: {}",
