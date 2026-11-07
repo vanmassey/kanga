@@ -347,7 +347,8 @@ pub fn translate(virtual_address: u64) -> Result<u64, MappingError> {
     let mut table = active_root()?;
     for (level, index) in indices.iter().enumerate() {
         // SAFETY: table points to a valid, mapped page-table frame.
-        let entry = unsafe { core::ptr::read_volatile(core::ptr::addr_of!((*table).entries[*index])) };
+        let entry =
+            unsafe { core::ptr::read_volatile(core::ptr::addr_of!((*table).entries[*index])) };
         if !entry.is_present() {
             return Err(MappingError::NotMapped);
         }
