@@ -317,8 +317,7 @@ pub fn allocate(layout: Layout) -> *mut u8 {
             let Some(block_end) = block_start.checked_add(block.size) else {
                 return ptr::null_mut();
             };
-            let Some(mut payload) =
-                align_up(block_start.saturating_add(header_size), alignment)
+            let Some(mut payload) = align_up(block_start.saturating_add(header_size), alignment)
             else {
                 return ptr::null_mut();
             };
