@@ -200,8 +200,7 @@ pub fn allocate(layout: Layout) -> *mut u8 {
         let Some(block_end) = block_start.checked_add(block.size) else {
             return ptr::null_mut();
         };
-        let Some(mut payload) = align_up(block_start.saturating_add(header_size), alignment)
-        else {
+        let Some(mut payload) = align_up(block_start.saturating_add(header_size), alignment) else {
             return ptr::null_mut();
         };
         let mut allocation_start = payload - header_size;
@@ -225,8 +224,7 @@ pub fn allocate(layout: Layout) -> *mut u8 {
             continue;
         }
 
-        let suffix_start = align_up(allocation_end, align_of::<FreeBlock>())
-            .unwrap_or(block_end);
+        let suffix_start = align_up(allocation_end, align_of::<FreeBlock>()).unwrap_or(block_end);
         let has_suffix = block_end.saturating_sub(suffix_start) >= size_of::<FreeBlock>();
         let suffix = if has_suffix {
             suffix_start as *mut FreeBlock
@@ -334,8 +332,7 @@ pub unsafe fn deallocate(pointer: *mut u8, _layout: Layout) -> bool {
     }
 
     // Reject overlap, including a duplicate free.
-    if (!previous.is_null()
-        && (previous as usize) + unsafe { (*previous).size } > header_address)
+    if (!previous.is_null() && (previous as usize) + unsafe { (*previous).size } > header_address)
         || (!current.is_null() && allocation_end > current as usize)
     {
         return false;
@@ -364,9 +361,7 @@ pub unsafe fn deallocate(pointer: *mut u8, _layout: Layout) -> bool {
             (*node).next = (*current).next;
         }
     }
-    if !previous.is_null()
-        && (previous as usize) + unsafe { (*previous).size } == header_address
-    {
+    if !previous.is_null() && (previous as usize) + unsafe { (*previous).size } == header_address {
         // SAFETY: The two free blocks are adjacent.
         unsafe {
             (*previous).size += (*node).size;
@@ -388,11 +383,7 @@ pub fn self_test() -> bool {
 
     let first = allocate(first_layout);
     let second = allocate(second_layout);
-    if first.is_null()
-        || second.is_null()
-        || first as usize % 64 != 0
-        || second as usize % 256 != 0
-    {
+    if first.is_null() || second.is_null() || first as usize % 64 != 0 || second as usize % 256 != 0 {
         if !first.is_null() {
             // SAFETY: first is a live allocation created above.
             let _ = unsafe { deallocate(first, first_layout) };
