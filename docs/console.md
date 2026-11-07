@@ -23,3 +23,21 @@ before editing or submitting a command.
 The ring holds up to 512 columns per line and 128 lines. New output overwrites
 the oldest retained line when the buffer fills. `CLS` clears the display and
 its retained history.
+
+
+## Kanga mascot and shell messages
+
+The startup console includes a small ASCII Kanga mascot:
+
+```text
+ /\_/\
+( o.o )
+ >-v-<
+ /   \
+(_____)
+```
+
+Selected recoverable shell errors use kangaroo-themed wording while retaining
+the useful diagnostic detail. For example, an unknown command is reported as
+having possibly hopped off, and missing files are described as having hopped
+out of KangaFS. These messages do not change command handling or error codes.

@@ -226,7 +226,10 @@ mod tests {
 
     #[test]
     fn decodes_bcd_timestamp_with_century() {
-        let result = decode(raw(0x56, 0x34, 0x21, 0x09, 0x11, 0x26, 0x20), TWENTY_FOUR_HOUR);
+        let result = decode(
+            raw(0x56, 0x34, 0x21, 0x09, 0x11, 0x26, 0x20),
+            TWENTY_FOUR_HOUR,
+        );
         assert_eq!(result, Some(expected(2026, 11, 9, 21, 34, 56)));
     }
 

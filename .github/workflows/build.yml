@@ -79,7 +79,7 @@ jobs:
             sleep 0.15
           done
           sleep 1
-          for key in a b o u t ret c a l ret; do
+          for key in a b o u t ret c a l ret b a n a n a ret; do
             printf 'sendkey %s 80\n' "$key" | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
             sleep 0.15
           done
@@ -124,6 +124,9 @@ jobs:
           grep -F "You may redistribute it under the GNU GPL version 2." build/serial.log
           grep -F "License: https://github.com/vanmassey/kanga/blob/main/LICENSE" build/serial.log
           grep -F "KANGA COMMAND REFERENCE" build/serial.log
+          grep -F "( o.o )" build/serial.log
+          grep -F ">-v-<" build/serial.log
+          grep -F "Kanga can't find 'banana'. It may have hopped off." build/serial.log
           grep -F "| KangaFS RAM filesystem" build/serial.log
           grep -F "Saved note.txt (16 bytes)." build/serial.log
           grep -F "hello from kanga" build/serial.log
