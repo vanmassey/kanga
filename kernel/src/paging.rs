@@ -309,11 +309,16 @@ pub fn self_test() -> bool {
 
     let translated = translate(TEST_VIRTUAL_ADDRESS) == Ok(frame);
     let unmapped = unmap_page(TEST_VIRTUAL_ADDRESS) == Ok(frame);
-    let returned = memory::with_global_allocator(|allocator| {
-        // SAFETY: The test removed the mapping and retains ownership of the frame.
-        unsafe { allocator.deallocate_frame(frame) }
-    })
-    .unwrap_or(false);
+    // Never return the frame to the allocator if the mapping may still exist.
+    let returned = if unmapped {
+        memory::with_global_allocator(|allocator| {
+            // SAFETY: The test removed the mapping and retains ownership of the frame.
+            unsafe { allocator.deallocate_frame(frame) }
+        })
+        .unwrap_or(false)
+    } else {
+        false
+    };
 
     translated && unmapped && returned
 }
