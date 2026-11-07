@@ -195,7 +195,7 @@ pub fn initialise() -> bool {
     };
     tasks[2] = Task {
         name: "worker-b",
-        priority: TaskPriority::Normal,
+        priority: 1,
         state: TaskState::Runnable,
         context: unsafe { build_initial_context(worker_b_stack, worker_b, code_segment) },
     };
