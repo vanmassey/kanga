@@ -7,7 +7,6 @@
 use core::alloc::Layout;
 use core::arch::{asm, global_asm};
 use core::cell::UnsafeCell;
-use core::fmt::Write;
 use core::ptr;
 use core::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 
@@ -193,26 +192,6 @@ pub fn initialise() -> bool {
         unsafe { build_initial_context(worker_a_stack, worker_a, code_segment, stack_segment) };
     let worker_b_context =
         unsafe { build_initial_context(worker_b_stack, worker_b, code_segment, stack_segment) };
-    let worker_a_frame =
-        unsafe { &*((worker_a_context + REGISTER_FRAME_OFFSET) as *const RegisterFrame) };
-    let worker_b_frame =
-        unsafe { &*((worker_b_context + REGISTER_FRAME_OFFSET) as *const RegisterFrame) };
-    let _ = writeln!(
-        crate::serial::Writer,
-        "Scheduler context A: rsp=0x{:016x} rip=0x{:016x} cs=0x{:04x} flags=0x{:x}",
-        worker_a_context,
-        worker_a_frame.instruction_pointer,
-        worker_a_frame.code_segment,
-        worker_a_frame.cpu_flags
-    );
-    let _ = writeln!(
-        crate::serial::Writer,
-        "Scheduler context B: rsp=0x{:016x} rip=0x{:016x} cs=0x{:04x} flags=0x{:x}",
-        worker_b_context,
-        worker_b_frame.instruction_pointer,
-        worker_b_frame.code_segment,
-        worker_b_frame.cpu_flags
-    );
 
     let tasks = unsafe { &mut *TASKS.0.get() };
     tasks[0] = Task {
