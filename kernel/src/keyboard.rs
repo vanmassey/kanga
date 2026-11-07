@@ -21,6 +21,8 @@ pub enum Key {
     Enter,
     ArrowUp,
     ArrowDown,
+    PageUp,
+    PageDown,
 }
 
 /// Called only from the IRQ1 handler; never formats text or allocates memory.
@@ -57,6 +59,8 @@ fn translate(scancode: u8) -> Option<Key> {
         return match scancode {
             0x48 => Some(Key::ArrowUp),
             0x50 => Some(Key::ArrowDown),
+            0x49 => Some(Key::PageUp),
+            0x51 => Some(Key::PageDown),
             _ => None,
         };
     }
