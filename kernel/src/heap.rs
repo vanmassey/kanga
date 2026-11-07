@@ -287,125 +287,137 @@ pub fn allocate(layout: Layout) -> *mut u8 {
     if layout.size() == 0 {
         return core::ptr::NonNull::<u8>::dangling().as_ptr();
     }
-    if layout.size() > MAX_HEAP_BYTES {
-        return ptr::null_mut();
-    }
-
-    let mut state = HEAP.lock();
-    let Some(heap) = state.as_mut() else {
-        return ptr::null_mut();
-    };
 
     let alignment = layout.align().max(align_of::<FreeBlock>());
     let header_size = size_of::<AllocationHeader>();
-    let mut previous: *mut FreeBlock = ptr::null_mut();
-    let mut current = heap.free;
+    let Some(minimum_size) = layout
+        .size()
+        .checked_add(header_size)
+        .and_then(|size| size.checked_add(alignment - 1))
+    else {
+        return ptr::null_mut();
+    };
+    if minimum_size > MAX_HEAP_BYTES {
+        return ptr::null_mut();
+    }
 
-    while !current.is_null() {
-        // SAFETY: Every free-list node lies within the owned heap region.
-        let block = unsafe { &mut *current };
-        let block_start = current as usize;
-        let Some(block_end) = block_start.checked_add(block.size) else {
+    loop {
+        let mut state = HEAP.lock();
+        let Some(heap) = state.as_mut() else {
             return ptr::null_mut();
         };
-        let Some(mut payload) = align_up(block_start.saturating_add(header_size), alignment) else {
-            return ptr::null_mut();
-        };
-        let mut allocation_start = payload - header_size;
 
-        while allocation_start > block_start
-            && allocation_start - block_start < size_of::<FreeBlock>()
-        {
-            let Some(next_payload) = payload.checked_add(alignment) else {
+        let mut previous: *mut FreeBlock = ptr::null_mut();
+        let mut current = heap.free;
+
+        while !current.is_null() {
+            // SAFETY: Every free-list node lies within the owned heap region.
+            let block = unsafe { &mut *current };
+            let block_start = current as usize;
+            let Some(block_end) = block_start.checked_add(block.size) else {
                 return ptr::null_mut();
             };
-            payload = next_payload;
-            allocation_start = payload - header_size;
-        }
+            let Some(mut payload) =
+                align_up(block_start.saturating_add(header_size), alignment)
+            else {
+                return ptr::null_mut();
+            };
+            let mut allocation_start = payload - header_size;
 
-        let Some(allocation_end) = payload.checked_add(layout.size()) else {
-            return ptr::null_mut();
-        };
-        if allocation_end > block_end {
-            previous = current;
-            current = block.next;
-            continue;
-        }
+            while allocation_start > block_start
+                && allocation_start - block_start < size_of::<FreeBlock>()
+            {
+                let Some(next_payload) = payload.checked_add(alignment) else {
+                    return ptr::null_mut();
+                };
+                payload = next_payload;
+                allocation_start = payload - header_size;
+            }
 
-        let suffix_start = align_up(allocation_end, align_of::<FreeBlock>()).unwrap_or(block_end);
-        let has_suffix = block_end.saturating_sub(suffix_start) >= size_of::<FreeBlock>();
-        let suffix = if has_suffix {
-            suffix_start as *mut FreeBlock
-        } else {
-            ptr::null_mut()
-        };
-        let next = block.next;
+            let Some(allocation_end) = payload.checked_add(layout.size()) else {
+                return ptr::null_mut();
+            };
+            if allocation_end > block_end {
+                previous = current;
+                current = block.next;
+                continue;
+            }
 
-        if allocation_start == block_start {
-            if suffix.is_null() {
-                if previous.is_null() {
-                    heap.free = next;
+            let suffix_start =
+                align_up(allocation_end, align_of::<FreeBlock>()).unwrap_or(block_end);
+            let has_suffix = block_end.saturating_sub(suffix_start) >= size_of::<FreeBlock>();
+            let suffix = if has_suffix {
+                suffix_start as *mut FreeBlock
+            } else {
+                ptr::null_mut()
+            };
+            let next = block.next;
+
+            if allocation_start == block_start {
+                if suffix.is_null() {
+                    if previous.is_null() {
+                        heap.free = next;
+                    } else {
+                        // SAFETY: previous is a valid free-list node.
+                        unsafe {
+                            (*previous).next = next;
+                        }
+                    }
                 } else {
-                    // SAFETY: previous is a valid free-list node.
+                    // SAFETY: The suffix remains within the original free block.
                     unsafe {
-                        (*previous).next = next;
+                        suffix.write(FreeBlock {
+                            size: block_end - suffix_start,
+                            next,
+                        });
+                    }
+                    if previous.is_null() {
+                        heap.free = suffix;
+                    } else {
+                        // SAFETY: previous is a valid free-list node.
+                        unsafe {
+                            (*previous).next = suffix;
+                        }
                     }
                 }
             } else {
-                // SAFETY: The suffix remains within the original free block.
-                unsafe {
-                    suffix.write(FreeBlock {
-                        size: block_end - suffix_start,
-                        next,
-                    });
-                }
-                if previous.is_null() {
-                    heap.free = suffix;
-                } else {
-                    // SAFETY: previous is a valid free-list node.
+                block.size = allocation_start - block_start;
+                if !suffix.is_null() {
+                    // SAFETY: The suffix remains within the original free block.
                     unsafe {
-                        (*previous).next = suffix;
+                        suffix.write(FreeBlock {
+                            size: block_end - suffix_start,
+                            next,
+                        });
+                        block.next = suffix;
                     }
                 }
             }
-        } else {
-            block.size = allocation_start - block_start;
-            if !suffix.is_null() {
-                // SAFETY: The suffix remains within the original free block.
-                unsafe {
-                    suffix.write(FreeBlock {
-                        size: block_end - suffix_start,
-                        next,
-                    });
-                    block.next = suffix;
-                }
+
+            let allocated_size = if has_suffix {
+                suffix_start - allocation_start
+            } else {
+                block_end - allocation_start
+            };
+            // SAFETY: The header is aligned and immediately precedes the payload.
+            unsafe {
+                (allocation_start as *mut AllocationHeader).write(AllocationHeader {
+                    size: allocated_size,
+                    requested_size: layout.size(),
+                });
             }
+            // SAFETY: The returned allocation is exclusively owned and in bounds.
+            unsafe {
+                ptr::write_bytes(payload as *mut u8, 0, layout.size());
+            }
+            return payload as *mut u8;
         }
 
-        let allocated_size = if has_suffix {
-            suffix_start - allocation_start
-        } else {
-            block_end - allocation_start
-        };
-        // SAFETY: The header is aligned and immediately precedes the payload.
-        unsafe {
-            (allocation_start as *mut AllocationHeader).write(AllocationHeader {
-                size: allocated_size,
-                requested_size: layout.size(),
-            });
+        drop(state);
+        if !grow_heap() {
+            return ptr::null_mut();
         }
-        // SAFETY: The returned allocation is exclusively owned and in bounds.
-        unsafe {
-            ptr::write_bytes(payload as *mut u8, 0, layout.size());
-        }
-        return payload as *mut u8;
     }
-
-    drop(state);
-    if grow_heap() {
-        return allocate(layout);
-    }
-    ptr::null_mut()
 }
 
 /// Return a live allocation to the heap.
