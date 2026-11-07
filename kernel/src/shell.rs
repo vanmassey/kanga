@@ -151,9 +151,8 @@ pub fn run(mut console: Option<Console>) -> ! {
                         history_index -= 1;
                         length = history_lengths[history_index];
                         line[..length].copy_from_slice(&history[history_index][..length]);
-                        let _ = output.write_str(
-                            core::str::from_utf8(&line[..length]).unwrap_or(""),
-                        );
+                        let _ =
+                            output.write_str(core::str::from_utf8(&line[..length]).unwrap_or(""));
                     }
                 }
                 Key::ArrowDown => {
@@ -175,9 +174,8 @@ pub fn run(mut console: Option<Console>) -> ! {
                         };
                         if history_index < history_count {
                             line[..length].copy_from_slice(&history[history_index][..length]);
-                            let _ = output.write_str(
-                                core::str::from_utf8(&line[..length]).unwrap_or(""),
-                            );
+                            let _ = output
+                                .write_str(core::str::from_utf8(&line[..length]).unwrap_or(""));
                         }
                     }
                 }
