@@ -35,22 +35,18 @@ enum TaskPriority {
 
 #[derive(Clone, Copy)]
 struct Task {
-    id: usize,
     name: &'static str,
     priority: TaskPriority,
     state: TaskState,
     context: usize,
-    stack: *mut u8,
 }
 
 impl Task {
     const EMPTY: Self = Self {
-        id: 0,
         name: "",
         priority: TaskPriority::Normal,
         state: TaskState::Empty,
         context: 0,
-        stack: ptr::null_mut(),
     };
 }
 
@@ -158,8 +154,12 @@ pub fn initialise() -> bool {
         return false;
     }
 
-    let Ok(stack_layout) = Layout::from_size_align(KERNEL_STACK_SIZE, 16) else {
-        return false;
+    let stack_layout = match Layout::from_size_align(KERNEL_STACK_SIZE, 16) {
+        Ok(layout) => layout,
+        Err(_) => {
+            restore_interrupts(interrupt_flags);
+            return false;
+        }
     };
 
     let worker_a_stack = heap::allocate(stack_layout);
@@ -196,20 +196,16 @@ pub fn initialise() -> bool {
         stack: ptr::null_mut(),
     };
     tasks[1] = Task {
-        id: 1,
         name: "worker-a",
         priority: TaskPriority::Normal,
         state: TaskState::Runnable,
         context: unsafe { build_initial_context(worker_a_stack, worker_a, code_segment) },
-        stack: worker_a_stack,
     };
     tasks[2] = Task {
-        id: 2,
         name: "worker-b",
         priority: TaskPriority::Normal,
         state: TaskState::Runnable,
         context: unsafe { build_initial_context(worker_b_stack, worker_b, code_segment) },
-        stack: worker_b_stack,
     };
 
     CURRENT_TASK.store(0, Ordering::Relaxed);
@@ -217,6 +213,20 @@ pub fn initialise() -> bool {
     ENABLED.store(true, Ordering::Release);
     restore_interrupts(interrupt_flags);
     true
+}
+
+/// Return a task's stable name and whether it is currently running.
+pub fn task_info(index: usize) -> Option<(&'static str, bool)> {
+    if index >= MAX_TASKS || !ENABLED.load(Ordering::Acquire) {
+        return None;
+    }
+    // Names are immutable after initialisation; only the current index changes.
+    let name = unsafe { (*TASKS.0.get())[index].name };
+    if name.is_empty() {
+        None
+    } else {
+        Some((name, CURRENT_TASK.load(Ordering::Acquire) == index))
+    }
 }
 
 /// Return a lock-free snapshot for the foreground TASKS command.
@@ -268,45 +278,49 @@ unsafe fn build_initial_context(
     entry: fn() -> !,
     code_segment: u16,
 ) -> usize {
-    let stack_end = stack.add(KERNEL_STACK_SIZE) as usize;
-    // SysV x86-64 requires RSP == 8 (mod 16) at a function entry point.
-    let stack_top = (stack_end & !0xF).saturating_sub(8);
-    let frame_address = stack_top - core::mem::size_of::<RegisterFrame>();
-    let context_address = frame_address - REGISTER_FRAME_OFFSET;
-    let context = context_address as *mut u8;
+    // SAFETY: The caller owns a live heap allocation of KERNEL_STACK_SIZE bytes.
+    // The initial frame is placed at its upper end and remains inside that stack.
+    unsafe {
+        let stack_end = stack.add(KERNEL_STACK_SIZE) as usize;
+        // SysV x86-64 requires RSP == 8 (mod 16) at a function entry point.
+        let stack_top = (stack_end & !0xF).saturating_sub(8);
+        let frame_address = stack_top - core::mem::size_of::<RegisterFrame>();
+        let context_address = frame_address - REGISTER_FRAME_OFFSET;
+        let context = context_address as *mut u8;
 
-    // Initialise a clean x87/SSE state (FCW=0x037f, MXCSR=0x1f80).
-    ptr::write_bytes(context, 0, FXSAVE_SIZE);
-    ptr::write_unaligned(context.cast::<u16>(), 0x037F);
-    ptr::write_unaligned(context.add(24).cast::<u32>(), 0x1F80);
-    ptr::write(
-        context.add(CONTEXT_POINTER_OFFSET).cast::<usize>(),
-        frame_address,
-    );
+        // Initialise a clean x87/SSE state (FCW=0x037f, MXCSR=0x1f80).
+        ptr::write_bytes(context, 0, FXSAVE_SIZE);
+        ptr::write_unaligned(context.cast::<u16>(), 0x037F);
+        ptr::write_unaligned(context.add(24).cast::<u32>(), 0x1F80);
+        ptr::write(
+            context.add(CONTEXT_POINTER_OFFSET).cast::<usize>(),
+            frame_address,
+        );
 
-    let frame = frame_address as *mut RegisterFrame;
-    frame.write(RegisterFrame {
-        r15: 0,
-        r14: 0,
-        r13: 0,
-        r12: 0,
-        r11: 0,
-        r10: 0,
-        r9: 0,
-        r8: 0,
-        rbp: 0,
-        rdi: 0,
-        rsi: 0,
-        rdx: 0,
-        rcx: 0,
-        rbx: 0,
-        rax: 0,
-        instruction_pointer: entry as usize as u64,
-        code_segment: u64::from(code_segment),
-        cpu_flags: 0x202,
-    });
+        let frame = frame_address as *mut RegisterFrame;
+        frame.write(RegisterFrame {
+            r15: 0,
+            r14: 0,
+            r13: 0,
+            r12: 0,
+            r11: 0,
+            r10: 0,
+            r9: 0,
+            r8: 0,
+            rbp: 0,
+            rdi: 0,
+            rsi: 0,
+            rdx: 0,
+            rcx: 0,
+            rbx: 0,
+            rax: 0,
+            instruction_pointer: entry as usize as u64,
+            code_segment: u64::from(code_segment),
+            cpu_flags: 0x202,
+        });
 
-    context_address
+        context_address
+    }
 }
 
 fn worker_a() -> ! {
