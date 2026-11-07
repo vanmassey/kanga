@@ -13,6 +13,7 @@ pub enum Error {
     NameTooLong,
     FileTooLarge,
     DirectoryFull,
+    NotFound,
 }
 
 #[derive(Clone, Copy)]
@@ -90,6 +91,17 @@ impl FileSystem {
             .map(|file| &file.data[..file.data_len])
     }
 
+    /// Copy a file, replacing the destination if it already exists.
+    pub fn copy(&mut self, source: &[u8], destination: &[u8]) -> Result<(), Error> {
+        let mut buffer = [0_u8; FILE_CAPACITY];
+        let length = {
+            let contents = self.read(source).ok_or(Error::NotFound)?;
+            buffer[..contents.len()].copy_from_slice(contents);
+            contents.len()
+        };
+        self.write(destination, &buffer[..length])
+    }
+
     pub fn delete(&mut self, name: &[u8]) -> bool {
         let Ok(name) = validate_name(name) else {
             return false;
@@ -157,6 +169,26 @@ mod tests {
         assert_eq!(fs.read(b"note.txt"), Some(&b"updated"[..]));
         assert!(fs.delete(b"note.txt"));
         assert_eq!(fs.read(b"note.txt"), None);
+    }
+
+    #[test]
+    fn copies_file_contents_and_overwrites_destination() {
+        let mut fs = FileSystem::new();
+        fs.write(b"source.txt", b"original contents").unwrap();
+        fs.write(b"backup.txt", b"old backup").unwrap();
+
+        fs.copy(b"source.txt", b"backup.txt").unwrap();
+
+        assert_eq!(fs.read(b"backup.txt"), Some(&b"original contents"[..]));
+        assert_eq!(fs.used(), 2);
+    }
+
+    #[test]
+    fn copy_reports_missing_source_and_validates_destination() {
+        let mut fs = FileSystem::new();
+        assert_eq!(fs.copy(b"missing.txt", b"copy.txt"), Err(Error::NotFound));
+        fs.write(b"source.txt", b"data").unwrap();
+        assert_eq!(fs.copy(b"source.txt", b"bad name"), Err(Error::InvalidName));
     }
 
     #[test]
