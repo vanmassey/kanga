@@ -182,7 +182,13 @@ pub fn initialise() {
         set_gate(idt, 29, exception_29 as *const () as usize, selector, 0);
         set_gate(idt, 30, exception_30 as *const () as usize, selector, 0);
         set_gate(idt, 31, exception_31 as *const () as usize, selector, 0);
-        set_gate(idt, 0x20, crate::scheduler::timer_interrupt_entry as *const () as usize, selector, 0);
+        set_gate(
+            idt,
+            0x20,
+            crate::scheduler::timer_interrupt_entry as *const () as usize,
+            selector,
+            0,
+        );
         set_gate(idt, 0x21, keyboard_irq as *const () as usize, selector, 0);
 
         let pointer = IdtPointer {
