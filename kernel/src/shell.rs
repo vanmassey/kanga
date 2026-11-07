@@ -36,7 +36,9 @@ pub fn run(mut console: Option<Console>) -> ! {
             "Kanga OS  |  x86_64  |  Limine boot protocol",
         );
         draw_panel_line(&mut output, width, "(C) 2026 Kanga Development Team");
-        draw_panel_line(&mut output, width, "GNU General Public License v2 - NO WARRANTY");
+        draw_panel_line(&mut output, width, "This program comes with ABSOLUTELY NO WARRANTY.");
+        draw_panel_line(&mut output, width, "You may redistribute it under the GNU GPL version 2.");
+        draw_panel_line(&mut output, width, "License: https://github.com/vanmassey/kanga/blob/main/LICENSE");
         draw_rule(&mut output, width);
         draw_panel_line(&mut output, width, "KERNEL STARTUP");
         draw_status(&mut output, width, "Kernel core", "READY");
