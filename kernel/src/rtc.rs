@@ -188,3 +188,104 @@ unsafe fn inb(port: u16) -> u8 {
     }
     value
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{decode, DateTime, RawTime, BINARY_MODE, TWENTY_FOUR_HOUR};
+
+    fn raw(
+        seconds: u8,
+        minutes: u8,
+        hours: u8,
+        day: u8,
+        month: u8,
+        year: u8,
+        century: u8,
+    ) -> RawTime {
+        RawTime {
+            seconds,
+            minutes,
+            hours,
+            day,
+            month,
+            year,
+            century,
+        }
+    }
+
+    fn expected(year: u16, month: u8, day: u8, hour: u8, minute: u8, second: u8) -> DateTime {
+        DateTime {
+            year,
+            month,
+            day,
+            hour,
+            minute,
+            second,
+        }
+    }
+
+    #[test]
+    fn decodes_bcd_timestamp_with_century() {
+        let result = decode(raw(0x56, 0x34, 0x21, 0x09, 0x11, 0x26, 0x20), TWENTY_FOUR_HOUR);
+        assert_eq!(result, Some(expected(2026, 11, 9, 21, 34, 56)));
+    }
+
+    #[test]
+    fn decodes_binary_timestamp_in_24_hour_mode() {
+        let status = BINARY_MODE | TWENTY_FOUR_HOUR;
+        let result = decode(raw(58, 47, 23, 28, 2, 24, 20), status);
+        assert_eq!(result, Some(expected(2024, 2, 28, 23, 47, 58)));
+    }
+
+    #[test]
+    fn converts_12_am_to_midnight() {
+        let result = decode(raw(0x00, 0x05, 0x12, 0x01, 0x01, 0x26, 0x20), 0);
+        assert_eq!(result, Some(expected(2026, 1, 1, 0, 5, 0)));
+    }
+
+    #[test]
+    fn converts_12_pm_to_noon() {
+        let result = decode(raw(0x00, 0x05, 0x92, 0x01, 0x01, 0x26, 0x20), 0);
+        assert_eq!(result, Some(expected(2026, 1, 1, 12, 5, 0)));
+    }
+
+    #[test]
+    fn validates_leap_day_using_gregorian_rules() {
+        let leap_day = decode(raw(0, 0, 0x92, 0x29, 0x02, 0x00, 0x20), 0);
+        let non_leap_century = decode(raw(0, 0, 0x92, 0x29, 0x02, 0x00, 0x19), 0);
+        assert_eq!(leap_day, Some(expected(2000, 2, 29, 12, 0, 0)));
+        assert_eq!(non_leap_century, None);
+    }
+
+    #[test]
+    fn rejects_invalid_bcd_nibbles() {
+        let invalid_seconds = decode(raw(0x6A, 0x00, 0x12, 0x01, 0x01, 0x26, 0x20), 0);
+        assert_eq!(invalid_seconds, None);
+    }
+
+    #[test]
+    fn rejects_out_of_range_calendar_and_time_fields() {
+        let invalid_seconds = decode(raw(0x60, 0, 0x12, 0x01, 0x01, 0x26, 0x20), 0);
+        let invalid_minutes = decode(raw(0, 0x60, 0x12, 0x01, 0x01, 0x26, 0x20), 0);
+        let invalid_month = decode(raw(0, 0, 0x12, 0x01, 0x13, 0x26, 0x20), 0);
+        let invalid_day = decode(raw(0, 0, 0x12, 0x00, 0x01, 0x26, 0x20), 0);
+        let invalid_12_hour_clock = decode(raw(0, 0, 0x00, 0x01, 0x01, 0x26, 0x20), 0);
+        assert_eq!(invalid_seconds, None);
+        assert_eq!(invalid_minutes, None);
+        assert_eq!(invalid_month, None);
+        assert_eq!(invalid_day, None);
+        assert_eq!(invalid_12_hour_clock, None);
+    }
+
+    #[test]
+    fn falls_back_to_pivot_year_when_century_is_unavailable_or_invalid() {
+        let no_century_2069 = decode(raw(0, 0, 0x92, 0x01, 0x01, 0x69, 0x00), 0);
+        let no_century_1970 = decode(raw(0, 0, 0x92, 0x01, 0x01, 0x70, 0x00), 0);
+        let invalid_bcd_century = decode(raw(0, 0, 0x92, 0x01, 0x01, 0x26, 0xFA), 0);
+        let implausible_century = decode(raw(0, 0, 0x92, 0x01, 0x01, 0x26, 0x18), 0);
+        assert_eq!(no_century_2069, Some(expected(2069, 1, 1, 12, 0, 0)));
+        assert_eq!(no_century_1970, Some(expected(1970, 1, 1, 12, 0, 0)));
+        assert_eq!(invalid_bcd_century, Some(expected(2026, 1, 1, 12, 0, 0)));
+        assert_eq!(implausible_century, Some(expected(2026, 1, 1, 12, 0, 0)));
+    }
+}
