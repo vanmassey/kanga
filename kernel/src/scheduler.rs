@@ -188,12 +188,10 @@ pub fn initialise() -> bool {
 
     let tasks = unsafe { &mut *TASKS.0.get() };
     tasks[0] = Task {
-        id: 0,
         name: "bootstrap",
         priority: TaskPriority::Normal,
         state: TaskState::Running,
         context: 0,
-        stack: ptr::null_mut(),
     };
     tasks[1] = Task {
         name: "worker-a",
