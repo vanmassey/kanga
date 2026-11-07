@@ -77,6 +77,8 @@ struct RegisterFrame {
     instruction_pointer: u64,
     code_segment: u64,
     cpu_flags: u64,
+    stack_pointer: u64,
+    stack_segment: u64,
 }
 
 global_asm!(
@@ -172,17 +174,25 @@ pub fn initialise() -> bool {
     }
 
     let code_segment: u16;
-    // SAFETY: Reading CS is a non-mutating architectural register operation.
+    let stack_segment: u16;
+    // SAFETY: Reading CS and SS are non-mutating architectural register operations.
     unsafe {
         asm!(
             "mov {0:x}, cs",
             out(reg) code_segment,
             options(nomem, nostack, preserves_flags)
         );
+        asm!(
+            "mov {0:x}, ss",
+            out(reg) stack_segment,
+            options(nomem, nostack, preserves_flags)
+        );
     }
 
-    let worker_a_context = unsafe { build_initial_context(worker_a_stack, worker_a, code_segment) };
-    let worker_b_context = unsafe { build_initial_context(worker_b_stack, worker_b, code_segment) };
+    let worker_a_context =
+        unsafe { build_initial_context(worker_a_stack, worker_a, code_segment, stack_segment) };
+    let worker_b_context =
+        unsafe { build_initial_context(worker_b_stack, worker_b, code_segment, stack_segment) };
     let worker_a_frame =
         unsafe { &*((worker_a_context + REGISTER_FRAME_OFFSET) as *const RegisterFrame) };
     let worker_b_frame =
@@ -289,7 +299,12 @@ extern "C" fn scheduler_tick(context: usize) -> usize {
     tasks[selected].context
 }
 
-unsafe fn build_initial_context(stack: *mut u8, entry: fn() -> !, code_segment: u16) -> usize {
+unsafe fn build_initial_context(
+    stack: *mut u8,
+    entry: fn() -> !,
+    code_segment: u16,
+    stack_segment: u16,
+) -> usize {
     // SAFETY: The caller owns a live heap allocation of KERNEL_STACK_SIZE bytes.
     // The initial frame is placed at its upper end and remains inside that stack.
     unsafe {
@@ -329,6 +344,8 @@ unsafe fn build_initial_context(stack: *mut u8, entry: fn() -> !, code_segment: 
             instruction_pointer: entry as usize as u64,
             code_segment: u64::from(code_segment),
             cpu_flags: 0x202,
+            stack_pointer: stack_top as u64,
+            stack_segment: u64::from(stack_segment),
         });
 
         context_address
