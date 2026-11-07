@@ -315,6 +315,13 @@ fn report_memory_map() {
         );
         return;
     };
+
+    let paging_ok = paging::self_test();
+    let _ = writeln!(
+        serial::Writer,
+        "Virtual mapping, translation and unmapping test: {}",
+        if paging_ok { "passed" } else { "FAILED" }
+    );
 }
 
 fn stop() -> ! {
