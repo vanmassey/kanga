@@ -16,7 +16,8 @@ mod graphics;
 mod interrupts;
 mod keyboard;
 mod memory;
-mod paging;
+/// Public x86-64 virtual-memory interface for the kernel.
+pub mod paging;
 mod pic;
 mod pit;
 mod rtc;
