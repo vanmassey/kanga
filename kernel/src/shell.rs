@@ -33,7 +33,7 @@ pub fn run(mut console: Option<Console>) -> ! {
         draw_panel_line(
             &mut output,
             width,
-            &format!("Version {}  |  x86_64  |  Limine boot protocol", env!("CARGO_PKG_VERSION")),
+            "Kanga OS  |  x86_64  |  Limine boot protocol",
         );
         draw_panel_line(&mut output, width, "(C) 2026 Kanga Development Team");
         draw_panel_line(&mut output, width, "GNU General Public License v2 - NO WARRANTY");
@@ -159,7 +159,7 @@ fn draw_status(output: &mut Output<'_>, width: usize, name: &str, status: &str) 
     } else {
         name
     };
-    let _ = write!(output, "|  {label}");
+    let _ = write!(output, "| {label}");
     for _ in label.len()..label_width {
         let _ = write!(output, ".");
     }
