@@ -84,10 +84,19 @@ jobs:
             sleep 0.15
           done
           sleep 0.5
+          # Up/Down recall shell history; Page Up/Down control scrollback.
           printf 'sendkey up 80\n' | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
           sleep 0.3
-          printf 'screendump build/kanga-scrollback-screen.ppm\n' | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
           printf 'sendkey down 80\n' | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
+          sleep 0.2
+          printf 'sendkey up 80\n' | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
+          sleep 0.2
+          printf 'sendkey ret 80\n' | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
+          sleep 0.3
+          printf 'sendkey pgup 80\n' | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
+          sleep 0.3
+          printf 'screendump build/kanga-scrollback-screen.ppm\n' | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
+          printf 'sendkey pgdn 80\n' | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
           sleep 0.3
           printf 'screendump build/kanga-screen.ppm\n' | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
           sleep 0.2
