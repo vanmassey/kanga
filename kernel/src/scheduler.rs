@@ -271,11 +271,7 @@ extern "C" fn scheduler_tick(context: usize) -> usize {
     tasks[selected].context
 }
 
-unsafe fn build_initial_context(
-    stack: *mut u8,
-    entry: fn() -> !,
-    code_segment: u16,
-) -> usize {
+unsafe fn build_initial_context(stack: *mut u8, entry: fn() -> !, code_segment: u16) -> usize {
     // SAFETY: The caller owns a live heap allocation of KERNEL_STACK_SIZE bytes.
     // The initial frame is placed at its upper end and remains inside that stack.
     unsafe {
