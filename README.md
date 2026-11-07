@@ -24,7 +24,7 @@ Kanga currently provides:
 - a 100 Hz PIT tick counter, uptime reporting and a CMOS real-time clock reader; and
 - KangaFS, a bounded RAM filesystem with a root directory, sixteen file slots, filenames up to 24 characters and file contents up to 256 bytes.
 
-The shell includes `HELP`, `DIR`, `CLS`, `VER`, `ECHO`, `INFO`, `MEM`, `TIME`, `DATE` (also `CLOCK`/`RTC`), `UPTIME`, `ABOUT`, `CAL`, `HALT`, `FSINFO`, `WRITE`, `TYPE` and `DEL`. Commands are case-insensitive. KangaFS contents exist only in RAM and are lost on reboot.
+The shell includes `HELP`, `DIR`, `CLS`, `VER`, `ECHO`, `INFO`, `MEM`, `TIME`, `DATE` (also `CLOCK`/`RTC`), `UPTIME`, `ABOUT`, `CAL`, `HALT`, `FSINFO`, `WRITE`, `TYPE`, `COPY` and `DEL`. Commands are case-insensitive. KangaFS contents exist only in RAM and are lost on reboot.
 
 The console retains up to 128 logical lines. Use **Up Arrow** to browse older output and **Down Arrow** to return towards the live prompt. Typing, Backspace or Enter returns to the live prompt. The renderer currently supports ANSI SGR palette colours only; cursor movement, terminal erase commands and 24-bit true colour are not implemented.
 
