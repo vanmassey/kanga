@@ -64,7 +64,7 @@ pub fn run(mut console: Option<Console>) -> ! {
         draw_panel_line(
             &mut output,
             width,
-            "Use the Up and Down arrows to navigate scrollback.",
+            "Use Up and Down for command history; Page Up and Down for scrollback.",
         );
         draw_rule(&mut output, width);
         let _ = write!(output, "\x1b[1;36mKanga> \x1b[0m");
@@ -72,6 +72,10 @@ pub fn run(mut console: Option<Console>) -> ! {
 
     let mut line = [0_u8; LINE_CAPACITY];
     let mut length = 0_usize;
+    let mut history = [[0_u8; LINE_CAPACITY]; 8];
+    let mut history_lengths = [0_usize; 8];
+    let mut history_count = 0_usize;
+    let mut history_index = 0_usize;
     let mut filesystem = FileSystem::new();
 
     loop {
@@ -104,17 +108,83 @@ pub fn run(mut console: Option<Console>) -> ! {
                         let mut output = Output(console.as_mut());
                         let _ = writeln!(output);
                     }
+                    if length > 0 {
+                        let maximum_input = console
+                            .as_ref()
+                            .map_or(80, Console::columns)
+                            .saturating_sub(8)
+                            .min(LINE_CAPACITY);
+                        if length <= maximum_input
+                            && (history_count == 0
+                                || history_lengths[history_count - 1] != length
+                                || history[history_count - 1][..length] != line[..length])
+                        {
+                            if history_count == history.len() {
+                                history.copy_within(1.., 0);
+                                history_lengths.copy_within(1.., 0);
+                                history_count -= 1;
+                            }
+                            history[history_count][..length].copy_from_slice(&line[..length]);
+                            history_lengths[history_count] = length;
+                            history_count += 1;
+                        }
+                    }
                     execute(&line[..length], console.as_mut(), &mut filesystem);
                     length = 0;
+                    history_index = history_count;
                     let mut output = Output(console.as_mut());
                     let _ = write!(output, "\x1b[1;36mKanga> \x1b[0m");
                 }
                 Key::ArrowUp => {
+                    let maximum_input = console
+                        .as_ref()
+                        .map_or(80, Console::columns)
+                        .saturating_sub(8)
+                        .min(LINE_CAPACITY);
+                    if length <= maximum_input && history_index > 0 {
+                        let mut output = Output(console.as_mut());
+                        for _ in 0..length {
+                            let _ = output.write_str("\x08 \x08");
+                        }
+                        history_index -= 1;
+                        length = history_lengths[history_index];
+                        line[..length].copy_from_slice(&history[history_index][..length]);
+                        let _ = output.write_str(
+                            core::str::from_utf8(&line[..length]).unwrap_or(""),
+                        );
+                    }
+                }
+                Key::ArrowDown => {
+                    let maximum_input = console
+                        .as_ref()
+                        .map_or(80, Console::columns)
+                        .saturating_sub(8)
+                        .min(LINE_CAPACITY);
+                    if length <= maximum_input && history_index < history_count {
+                        let mut output = Output(console.as_mut());
+                        for _ in 0..length {
+                            let _ = output.write_str("\x08 \x08");
+                        }
+                        history_index += 1;
+                        length = if history_index == history_count {
+                            0
+                        } else {
+                            history_lengths[history_index]
+                        };
+                        if history_index < history_count {
+                            line[..length].copy_from_slice(&history[history_index][..length]);
+                            let _ = output.write_str(
+                                core::str::from_utf8(&line[..length]).unwrap_or(""),
+                            );
+                        }
+                    }
+                }
+                Key::PageUp => {
                     if let Some(console) = console.as_mut() {
                         console.scroll_up();
                     }
                 }
-                Key::ArrowDown => {
+                Key::PageDown => {
                     if let Some(console) = console.as_mut() {
                         console.scroll_down();
                     }
