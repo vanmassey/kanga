@@ -89,7 +89,7 @@ pub fn run(mut console: Option<Console>) -> ! {
                     execute(&line[..length], console.as_mut(), &mut filesystem);
                     length = 0;
                     let mut output = Output(console.as_mut());
-                    let _ = write!(output, "Kanga> ");
+                    let _ = write!(output, "\x1b[1;36mKanga> \x1b[0m");
                 }
                 Key::ArrowUp => {
                     if let Some(console) = console.as_mut() {
@@ -153,7 +153,7 @@ fn draw_panel_line(output: &mut Output<'_>, width: usize, text: &str) {
 
 fn draw_status(output: &mut Output<'_>, width: usize, name: &str, status: &str) {
     let inner_width = width.saturating_sub(4);
-    let label_width = inner_width.saturating_sub(status.len() + 1);
+    let label_width = inner_width.saturating_sub(status.len() + 3);
     let label = if name.len() > label_width {
         &name[..label_width]
     } else {
