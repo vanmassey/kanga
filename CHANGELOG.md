@@ -2,7 +2,7 @@
 
 All notable Kanga changes are recorded here.
 
-## [0.1.0] - Unreleased
+## [0.1.0] - 2026-11-06
 
 First experimental milestone of the independent Kanga x86-64 operating-system project.
 
