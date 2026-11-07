@@ -11,9 +11,9 @@ use limine::request::{
 use limine::BaseRevision;
 
 mod filesystem;
-mod heap;
 mod font;
 mod graphics;
+mod heap;
 mod interrupts;
 mod keyboard;
 mod memory;
@@ -325,10 +325,18 @@ fn report_memory_map() {
         if paging_ok { "passed" } else { "FAILED" }
     );
     let heap_ok = heap::initialise(hhdm_offset);
-    let _ = writeln!(serial::Writer, "Kernel heap initialisation: {}", if heap_ok { "passed" } else { "FAILED" });
+    let _ = writeln!(
+        serial::Writer,
+        "Kernel heap initialisation: {}",
+        if heap_ok { "passed" } else { "FAILED" }
+    );
     if heap_ok {
         let heap_test = heap::self_test();
-        let _ = writeln!(serial::Writer, "Kernel heap allocation and reclamation test: {}", if heap_test { "passed" } else { "FAILED" });
+        let _ = writeln!(
+            serial::Writer,
+            "Kernel heap allocation and reclamation test: {}",
+            if heap_test { "passed" } else { "FAILED" }
+        );
     }
 }
 
