@@ -181,6 +181,22 @@ pub fn map_page(
             if entry.is_huge() {
                 return Err(MappingError::HugePageConflict);
             }
+            let mut promoted = entry.raw() | PageFlags::WRITABLE.0;
+            if user {
+                promoted |= PageFlags::USER.0;
+            }
+            if !flags.contains(PageFlags::NO_EXECUTE) {
+                promoted &= !NX;
+            }
+            if promoted != entry.raw() {
+                // SAFETY: This is a valid intermediate entry in the active hierarchy.
+                unsafe {
+                    core::ptr::write_volatile(
+                        core::ptr::addr_of_mut!((*table).entries[*index]),
+                        PageTableEntry(promoted),
+                    );
+                }
+            }
             table = table_from_physical(entry.physical_address())?;
         } else {
             let frame = allocate_table_frame()?;
@@ -263,6 +279,43 @@ pub fn unmap_page(virtual_address: u64) -> Result<u64, MappingError> {
     }
     flush_tlb(virtual_address);
     Ok(leaf.physical_address())
+}
+
+/// Exercise creation, translation and removal of one temporary mapping.
+///
+/// The test uses a reserved high user-space address and returns its data frame
+/// after unmapping. Intermediate page-table frames are retained because the
+/// manager does not yet reclaim empty page tables.
+pub fn self_test() -> bool {
+    const TEST_VIRTUAL_ADDRESS: u64 = 0x0000_4000_0000_0000;
+
+    if !matches!(translate(TEST_VIRTUAL_ADDRESS), Err(MappingError::NotMapped)) {
+        return false;
+    }
+
+    let Some(frame) = memory::with_global_allocator(|allocator| allocator.allocate_frame()).flatten()
+    else {
+        return false;
+    };
+
+    let flags = PageFlags::PRESENT | PageFlags::WRITABLE;
+    if map_page(TEST_VIRTUAL_ADDRESS, frame, flags).is_err() {
+        let _ = memory::with_global_allocator(|allocator| {
+            // SAFETY: The frame was allocated by this test and was not mapped.
+            unsafe { allocator.deallocate_frame(frame) }
+        });
+        return false;
+    }
+
+    let translated = translate(TEST_VIRTUAL_ADDRESS) == Ok(frame);
+    let unmapped = unmap_page(TEST_VIRTUAL_ADDRESS) == Ok(frame);
+    let returned = memory::with_global_allocator(|allocator| {
+        // SAFETY: The test removed the mapping and retains ownership of the frame.
+        unsafe { allocator.deallocate_frame(frame) }
+    })
+    .unwrap_or(false);
+
+    translated && unmapped && returned
 }
 
 /// Translate a mapped virtual address to its physical address.
