@@ -13,6 +13,7 @@ use limine::BaseRevision;
 mod filesystem;
 mod font;
 mod graphics;
+mod heap;
 mod interrupts;
 mod keyboard;
 mod memory;
@@ -323,6 +324,20 @@ fn report_memory_map() {
         "Virtual mapping, translation and unmapping test: {}",
         if paging_ok { "passed" } else { "FAILED" }
     );
+    let heap_ok = heap::initialise();
+    let _ = writeln!(
+        serial::Writer,
+        "Kernel heap initialisation: {}",
+        if heap_ok { "passed" } else { "FAILED" }
+    );
+    if heap_ok {
+        let heap_test = heap::self_test();
+        let _ = writeln!(
+            serial::Writer,
+            "Kernel heap allocation and reclamation test: {}",
+            if heap_test { "passed" } else { "FAILED" }
+        );
+    }
 }
 
 fn stop() -> ! {
