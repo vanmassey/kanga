@@ -29,6 +29,7 @@ struct FreeBlock {
 struct AllocationHeader {
     size: usize,
     requested_size: usize,
+    requested_alignment: usize,
 }
 
 struct HeapState {
@@ -403,6 +404,7 @@ pub fn allocate(layout: Layout) -> *mut u8 {
                 (allocation_start as *mut AllocationHeader).write(AllocationHeader {
                     size: allocated_size,
                     requested_size: layout.size(),
+                    requested_alignment: layout.align(),
                 });
             }
             // SAFETY: The returned allocation is exclusively owned and in bounds.
@@ -440,7 +442,10 @@ pub unsafe fn deallocate(pointer: *mut u8, layout: Layout) -> bool {
     // SAFETY: Caller guarantees pointer is a live allocation returned by allocate.
     let header = unsafe { &*(header_address as *const AllocationHeader) };
     let size = header.size;
-    if header.requested_size != layout.size() {
+    if header.requested_size != layout.size()
+        || header.requested_alignment != layout.align()
+        || (pointer as usize) % layout.align() != 0
+    {
         return false;
     }
     let Some(allocation_end) = header_address.checked_add(size) else {
@@ -508,6 +513,9 @@ pub fn self_test() -> bool {
     let Ok(second_layout) = Layout::from_size_align(513, 256) else {
         return false;
     };
+    let Ok(wrong_first_layout) = Layout::from_size_align(127, 8) else {
+        return false;
+    };
     let Ok(growth_layout) = Layout::from_size_align(96 * 1024, 4096) else {
         return false;
     };
@@ -543,6 +551,9 @@ pub fn self_test() -> bool {
             && (0..513).all(|index| *second.add(index) == 0)
             && (0..96 * 1024).all(|index| *growth.add(index) == 0)
     };
+    // A same-sized but differently aligned layout must not release the block.
+    // SAFETY: first is live; this deliberately supplies a mismatched layout.
+    let rejected_wrong_layout = unsafe { !deallocate(first, wrong_first_layout) };
     // SAFETY: All three allocations are live and are returned exactly once.
     let freed_growth = unsafe { deallocate(growth, growth_layout) };
     let freed_second = unsafe { deallocate(second, second_layout) };
@@ -556,7 +567,13 @@ pub fn self_test() -> bool {
         unsafe { deallocate(reused, second_layout) }
     };
 
-    zeroed && freed_growth && freed_second && freed_first && !reused.is_null() && freed_reused
+    rejected_wrong_layout
+        && zeroed
+        && freed_growth
+        && freed_second
+        && freed_first
+        && !reused.is_null()
+        && freed_reused
 }
 
 fn align_up(value: usize, alignment: usize) -> Option<usize> {
