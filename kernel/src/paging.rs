@@ -256,7 +256,8 @@ pub fn unmap_page(virtual_address: u64) -> Result<u64, MappingError> {
     let mut table = active_root()?;
     for index in indices.iter().take(3) {
         // SAFETY: table points to a valid, mapped page-table frame.
-        let entry = unsafe { core::ptr::read_volatile(core::ptr::addr_of!((*table).entries[*index])) };
+        let entry =
+            unsafe { core::ptr::read_volatile(core::ptr::addr_of!((*table).entries[*index])) };
         if !entry.is_present() {
             return Err(MappingError::NotMapped);
         }
@@ -268,7 +269,8 @@ pub fn unmap_page(virtual_address: u64) -> Result<u64, MappingError> {
 
     let leaf_index = indices[3];
     // SAFETY: table points to a valid, mapped page-table frame.
-    let leaf = unsafe { core::ptr::read_volatile(core::ptr::addr_of!((*table).entries[leaf_index])) };
+    let leaf =
+        unsafe { core::ptr::read_volatile(core::ptr::addr_of!((*table).entries[leaf_index])) };
     if !leaf.is_present() {
         return Err(MappingError::NotMapped);
     }
