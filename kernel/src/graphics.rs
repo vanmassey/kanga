@@ -318,6 +318,11 @@ impl Console {
         Some(console)
     }
 
+    /// Number of text columns available at the current framebuffer resolution.
+    pub fn columns(&self) -> usize {
+        self.columns
+    }
+
     pub fn clear(&mut self) {
         self.column = 0;
         self.row = 0;
