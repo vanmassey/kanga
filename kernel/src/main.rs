@@ -22,6 +22,7 @@ pub mod paging;
 mod pic;
 mod pit;
 mod rtc;
+mod scheduler;
 mod shell;
 
 static mut FRAME_BITMAP: [u64; memory::BITMAP_WORDS] = [u64::MAX; memory::BITMAP_WORDS];
@@ -69,6 +70,11 @@ pub extern "C" fn kanga_entry() -> ! {
 
     interrupts::initialise();
     report_memory_map();
+    if scheduler::initialise() {
+        let _ = writeln!(serial::Writer, "Scheduler: pre-emptive round-robin enabled (3 kernel threads)");
+    } else {
+        let _ = writeln!(serial::Writer, "Scheduler: unavailable; continuing on bootstrap thread");
+    }
     let console = initialise_graphics();
     let _ = writeln!(
         serial::Writer,
