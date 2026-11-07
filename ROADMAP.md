@@ -1,118 +1,214 @@
-# Kanga 0.2.0 Roadmap
+# Kanga 0.2.0 and long-term development roadmap
 
-Kanga 0.2.0 is the next development milestone for the independent x86-64 operating-system project. It builds on the experimental boot, console, interrupt, physical-frame allocation and RAM-filesystem foundation established in 0.1.0.
+Kanga is an independent x86-64 operating-system project. It is intended to grow into a capable, general-purpose operating system, not remain a tutorial kernel or a collection of isolated demonstrations.
 
-This roadmap describes intended work, not features that are already available. Priorities may change as implementation and testing reveal architectural requirements. No release date is promised.
+This roadmap records the intended architectural direction. It does not claim that planned components already exist, and it does not promise a release date. All work described here belongs to the 0.2.0 development line until a later release plan is explicitly published. The published 0.1.0 release remains unchanged.
 
-## Release goals
+## Engineering direction
 
-The central goal for 0.2.0 is to make the kernel's foundations safer and more extensible. Work should favour small, testable subsystems with clear ownership and interfaces over adding user-facing features before the underlying mechanisms are reliable.
+Kanga should be built as a coherent operating system with explicit subsystem boundaries, stable internal interfaces, resource ownership, meaningful failure handling and tests at multiple levels. Features should be substantial enough to support later features rather than temporary demonstrations that must be discarded.
 
-### 1. Kernel reliability and diagnostics
+The project should aim for:
 
-- Expand automated tests for RTC decoding, keyboard scancode translation, KangaFS filename handling and allocator boundary conditions.
-- Improve failure reporting for boot-time checks and fatal CPU exceptions.
-- Keep serial diagnostics useful and stable for automated validation.
-- Document subsystem invariants, unsafe code contracts and interrupt-context restrictions.
-- Test error paths as well as successful operations.
+- A maintainable monolithic kernel with clearly separated architecture-specific and architecture-independent code.
+- Robust physical and virtual memory management, including ownership, reclamation, protection and accounting.
+- Pre-emptive multitasking, isolated processes and a documented user/kernel ABI.
+- A real device model, bus discovery, reusable driver interfaces and hardware-independent services.
+- A virtual filesystem and persistent storage with defined on-disk formats and recovery/error behaviour.
+- A layered network stack and a coherent userland.
+- Security boundaries, capability/permission checks, defensive input validation and auditable unsafe code.
+- Automated unit, integration, emulator and (when available) physical-hardware testing.
 
-**Completion criteria:** the relevant unit and QEMU tests cover normal operation and important failure cases; failures produce actionable diagnostics.
+Do not add a feature merely to produce a boot message or a screenshot. A subsystem is not complete until its invariants, interfaces, error paths and tests are in place.
 
-### 2. Interrupt handling and synchronisation
+## Ordered implementation programme
 
-- Introduce a central interrupt/IRQ dispatch interface instead of embedding device-specific handling in the low-level entry path.
-- Separate exception handling from hardware IRQ dispatch.
-- Add correct handling for spurious legacy PIC interrupts.
-- Define explicit rules for interrupt state, lock ordering and code that may run in interrupt context.
-- Replace or supplement the current allocator spin lock with a design that cannot deadlock when an interrupt pre-empts a lock holder.
-- Preserve the existing keyboard and PIT behaviour while migrating to the new interfaces.
+The following order is deliberate and should be preserved. Work within a stage may be split into several focused pull requests. A later stage must not be started by pretending that an earlier stage's unfinished prerequisites are complete.
 
-**Completion criteria:** keyboard and timer interrupts use the common dispatch path; interrupt-context locking rules are documented and tested; the allocator cannot be deadlocked by the supported interrupt paths.
+### 1. Kernel heap and complete memory foundations
 
-### 3. Memory management
+Build a kernel memory subsystem that can support a growing kernel rather than a fixed demonstration allocator.
 
-- [x] Introduce an initial x86-64 page-table abstraction for inspecting and changing mappings in the active boot address space.
-- [x] Add 4 KiB page mapping and unmapping, virtual-to-physical translation and local TLB invalidation, with a boot-time mapping self-test.
-- Complete independent address spaces, safe CR3 switching and page-table frame reclamation.
-- Improve physical-frame allocator tests, including exhaustion, invalid ranges, contiguous allocations and reclamation.
-- Design a route to manage usable physical memory above the current 4 GiB bitmap limit.
-- Implement a small kernel heap backed by physical frames and virtual mappings.
-- Define allocation failure behaviour and ownership rules before converting existing subsystems to heap allocation.
-- Handle bootloader-reclaimable memory only after the kernel has safely finished using the relevant boot information.
+Scope:
 
-**Completion criteria:** mapping operations validate their inputs and maintain page-table invariants; heap allocation and deallocation pass boundary and stress tests; boot-time memory checks continue to pass.
+- Replace the fixed-size, physically contiguous heap with a virtual-page-backed heap that can grow and shrink.
+- Support aligned allocations, deallocation, splitting, coalescing, fragmentation management and allocation failure reporting.
+- Establish a documented allocator API and ownership rules; do not expose raw allocator internals to every subsystem.
+- Decide which allocation contexts are permitted. Interrupt handlers, exception paths and early boot must not accidentally invoke a sleeping or unsafe allocator.
+- Add allocation accounting, heap statistics, corruption checks and diagnostic reporting.
+- Expand physical-frame management beyond the current 4 GiB bitmap ceiling and provide efficient range allocation, reservation and reclamation.
+- Complete virtual-memory management: independent address spaces, safe page-table creation/reclamation, mapping permissions, guard regions, TLB invalidation and architecture feature detection.
+- Enable and validate NX before allowing non-executable page permissions; validate CPU paging capabilities at boot.
+- Reclaim bootloader memory only after all bootloader-owned data has been copied or deliberately retained.
+- Add stress, exhaustion, fragmentation, invalid-free and reuse tests.
 
-### 4. Hardware discovery
+Completion criteria: the heap is growable, backed by virtual mappings, has defined failure behaviour and passes allocator stress tests; memory ownership and page-table lifetime rules are documented; existing boot and QEMU tests remain green.
 
-- Add PCI configuration-space access and bus/device/function enumeration.
-- Record discovered devices in a structured representation.
-- Report vendor, device and class information over the serial console.
-- Test enumeration in QEMU and make unsupported devices harmless.
+### 2. Multitasking and scheduling
 
-**Completion criteria:** Kanga can enumerate and report PCI devices without relying on a particular device being present.
+Build a real tasking subsystem, not a cooperative task-switching demonstration.
 
-### 5. Storage and filesystem groundwork
+Scope:
 
-- Define a block-device interface independent of a specific controller.
-- Add a first storage driver suitable for the QEMU development environment.
-- Add partition-table discovery if the selected device and test setup support it.
-- Design a virtual filesystem interface so shell commands do not depend directly on KangaFS internals.
-- Preserve KangaFS as a simple RAM-backed filesystem while the new interfaces are developed.
-- Investigate an initial persistent filesystem only after block I/O and the VFS boundary are reliable.
+- Define task, thread, CPU context, kernel stack and lifecycle structures.
+- Implement architecture-correct context switching with preserved callee-saved state, stack alignment and interrupt-state handling.
+- Introduce a pre-emptive scheduler driven by timer interrupts, with explicit scheduling and interrupt-exit rules.
+- Support task creation, blocking, waking, yielding, sleeping, termination and cleanup.
+- Provide scheduler policies behind an interface; begin with a predictable priority-aware policy and leave room for fairness and load balancing.
+- Separate per-CPU scheduler state from global task state in preparation for SMP.
+- Define synchronisation primitives, wait queues, mutexes, condition variables and atomic interfaces with clear interrupt-context constraints.
+- Ensure a task cannot free its active stack or address space before switching away safely.
+- Add scheduler tracing, task identifiers, state inspection and stress tests.
 
-**Completion criteria:** block-device operations have defined bounds and error handling; the RAM filesystem can be accessed through the filesystem interface; storage tests do not risk silently corrupting data.
+Completion criteria: multiple kernel threads execute pre-emptively; blocking and wake-up work correctly; task resources are reclaimed safely; scheduler tests cover races and state transitions.
 
-Persistent storage is a major goal, but a complete on-disk filesystem is not guaranteed for 0.2.0. It should not be rushed to meet a version number.
+### 3. User-mode execution and process isolation
 
-## Not a 0.2.0 commitment
+Introduce a real privilege boundary between kernel and applications.
 
-The following remain longer-term directions unless the core goals above are completed and the designs are reviewed:
+Scope:
 
-- Multitasking, kernel threads and a process scheduler.
-- User mode, system calls and an executable loader.
-- Networking and network protocols.
-- USB support and a broad range of physical hardware drivers.
-- A graphical desktop or window system.
-- SMP and multi-core scheduling.
-- A general-purpose, feature-complete filesystem.
+- Configure ring 3 execution, TSS privilege stacks and safe entry/exit paths.
+- Create independent process address spaces with user/kernel mapping separation.
+- Enforce user, supervisor, writable and non-executable page permissions.
+- Provide guarded user and kernel stacks, controlled address-space switching and safe process teardown.
+- Define process and thread ownership, parent/child relationships, exit status and wait semantics.
+- Load a documented executable format, initially ELF64, with strict bounds and segment validation.
+- Establish an initial userland image and a reproducible way to build and package programs.
+- Prevent user pointers from being dereferenced directly by kernel code; add checked copy-in/copy-out helpers.
+- Test invalid pointers, malformed executables, privilege transitions and isolation boundaries.
 
-These features depend on reliable memory, interrupt, device and storage foundations. Their absence is not a failure of the 0.2.0 milestone.
+Completion criteria: an unprivileged process can be loaded and run independently; faults and termination are contained; user code cannot access kernel memory through ordinary mappings.
 
-## Testing and quality requirements
+### 4. System-call interface and user/kernel ABI
 
-Every kernel change should preserve the project's freestanding Rust and no_std design unless a deliberate architectural decision is documented.
+Design a stable, versioned boundary between user programs and the kernel.
 
-For relevant changes:
+Scope:
 
-- Add unit tests for pure logic and boundary conditions.
-- Extend QEMU tests for boot-time and hardware-facing behaviour.
-- Keep serial output deterministic enough for CI to validate.
-- Capture framebuffer output when a change affects the console.
-- Test both success and failure paths.
-- Document any behaviour that cannot be tested in QEMU and avoid claiming physical-hardware compatibility without evidence.
+- Define the syscall calling convention, register use, numbering, return/error convention and ABI versioning.
+- Implement a safe x86-64 syscall entry/exit path, including stack switching and validation of user execution state.
+- Provide checked user-memory access and consistent error handling.
+- Add process, thread, memory, time, file, directory and device operations as their supporting subsystems become available.
+- Define file descriptors/handles, per-process tables, inheritance and close-on-exec behaviour.
+- Add permission checks and a clear policy for privileged operations.
+- Keep architecture-specific syscall entry separate from portable syscall dispatch.
+- Provide userland headers, libraries and tests so applications do not depend on kernel internals.
+- Document ABI compatibility expectations before treating the interface as stable.
 
-The existing build and validation workflow should remain useful throughout the milestone. A passing QEMU run is a baseline, not proof that Kanga works on every physical machine.
+Completion criteria: user applications can invoke a documented syscall set; invalid numbers, arguments and pointers fail safely; ABI tests cover both success and error cases.
 
-## Suggested implementation order
+### 5. Persistent disk storage and filesystem services
 
-The order below reflects dependencies, not fixed deadlines:
+Turn the existing RAM-only filesystem into a storage architecture capable of retaining data across reboot.
 
-1. Expand tests and document current invariants.
-2. Introduce the interrupt dispatch design and make synchronisation safe for interrupt use.
-3. Build page-table management and the kernel heap.
-4. Add PCI enumeration.
-5. Define block-device and VFS interfaces.
-6. Add a QEMU storage driver and evaluate persistent filesystem support.
+Scope:
 
-A task may be split into smaller issues and pull requests. Significant design changes should be discussed in an issue before implementation.
+- Implement a device model and PCI enumeration sufficient to discover storage controllers.
+- Define a block-device interface with bounded reads/writes, flush semantics, capacity reporting, timeouts and error codes.
+- Add a QEMU-supported storage driver first, then broaden controller support without coupling filesystems to a particular device.
+- Discover partitions and validate partition-table bounds and metadata.
+- Build a VFS with mount points, directory traversal, file handles, metadata, permissions and filesystem-specific operations.
+- Retain KangaFS as a RAM filesystem and use it to test the VFS independently of disk hardware.
+- Select and implement a first persistent filesystem with documented on-disk structures, consistency rules and recovery behaviour.
+- Add caching and buffering only with explicit invalidation and flush rules.
+- Protect against malformed disk images, truncated reads, write failures and out-of-range requests.
+- Build host-side image tools and reproducible disk-image tests.
 
-## Versioning and release policy
+Completion criteria: files can be created, read, changed and removed on a virtual disk and remain present after reboot; filesystem errors do not silently become successful writes; RAM and persistent filesystems share the VFS interface.
 
-- **0.1.0** remains the first experimental milestone and its published release assets should remain unchanged.
-- New development described here belongs to the **0.2.0** development line.
-- The roadmap does not imply that any item is complete until its implementation, tests and documentation have been reviewed and merged.
-- A 0.2.0 release should be made only when its completed scope is stable enough to describe accurately in the changelog and release notes.
+### 6. Multi-core processing and interrupt controllers
+
+Move from a single boot CPU to a properly coordinated SMP kernel.
+
+Scope:
+
+- Discover processor topology and initialise application processors through the platform firmware/boot protocol.
+- Implement local APIC setup, I/O APIC routing, interrupt-source overrides and spurious interrupt handling.
+- Define per-CPU data, stacks, scheduler state, interrupt state and CPU-local storage.
+- Add inter-processor interrupts for rescheduling, TLB shootdowns and coordination.
+- Make locks and memory reclamation correct across CPUs; define lock ordering and avoid unbounded interrupt-disabled critical sections.
+- Add per-CPU allocators/caches where justified by measurement.
+- Extend scheduling to multiple CPUs, with affinity and load balancing.
+- Handle CPU startup failure and processor hotplug only when the underlying platform support is understood.
+- Test concurrent allocation, address-space changes, scheduling and IPI delivery under QEMU SMP.
+
+Completion criteria: multiple CPUs execute kernel work concurrently; interrupt routing and TLB shootdowns are correct; SMP stress tests do not expose races or deadlocks.
+
+### 7. Networking
+
+Build a layered network stack with clean driver and protocol boundaries.
+
+Scope:
+
+- Define network-device and packet-buffer interfaces.
+- Add a virtualised Ethernet driver for the primary QEMU test environment.
+- Implement Ethernet framing, ARP, IPv4, ICMP, UDP and TCP in independently testable layers.
+- Add address configuration, routing tables, neighbour resolution, socket buffers and timeout handling.
+- Define a socket API for user applications after the syscall and process foundations exist.
+- Add DNS resolver support and basic network configuration tools.
+- Validate packet lengths, checksums, fragmentation policy, state transitions and malformed input.
+- Add host-side protocol tests and QEMU integration tests using an isolated virtual network.
+- Design for later IPv6 support rather than embedding IPv4 assumptions in generic interfaces.
+
+Completion criteria: userland programs can communicate over a QEMU virtual network using documented socket operations; malformed packets are handled safely; protocol tests cover normal and adversarial cases.
+
+### 8. USB device support
+
+Implement USB as a subsystem, not a one-off keyboard driver.
+
+Scope:
+
+- Add USB host-controller discovery and a controller abstraction.
+- Implement xHCI as the initial modern host-controller target, with explicit DMA and memory-coherency requirements.
+- Manage device enumeration, descriptors, configuration, interfaces, endpoints and transfer lifecycles.
+- Implement transfer rings, event handling, cancellation, timeouts and device removal safely.
+- Add hub support and a class-driver framework.
+- Begin with HID keyboards and mice, then mass-storage support and other useful device classes.
+- Ensure USB storage integrates through the block-device interface and USB HID integrates through the input subsystem.
+- Test virtual USB devices in QEMU and document physical hardware coverage separately.
+
+Completion criteria: Kanga can enumerate and operate supported USB devices through reusable class and controller interfaces; disconnects and failed transfers do not corrupt kernel state.
+
+## Cross-cutting work
+
+These are continuous requirements, not a separate final feature stage:
+
+### Architecture and drivers
+- Keep x86-64 mechanisms behind architecture interfaces where practical.
+- Maintain a device model and reusable driver lifecycle.
+- Use explicit DMA mapping and cache-coherency rules.
+- Keep hardware discovery separate from driver policy.
+
+### Security and reliability
+- Treat all device, disk, network and user input as untrusted.
+- Validate sizes, offsets, pointers, alignment and integer arithmetic at subsystem boundaries.
+- Keep unsafe Rust blocks small and document their invariants.
+- Add privilege separation, least privilege and permission checks as the relevant facilities arrive.
+- Make panic, exception and device-failure paths diagnosable without depending on heap allocation.
+
+### Userland and system experience
+- Build a coherent base userland: init process, shell, core utilities, configuration tools and service management.
+- Keep the kernel independent of shell command implementations.
+- Define a package and application format only after executable loading, filesystems and process APIs are stable.
+- Consider a graphical stack only after input, memory, scheduling, storage and userland foundations are mature.
+
+### Testing and release quality
+- Run formatting, static checks, unit tests, kernel builds and QEMU integration tests for every relevant change.
+- Add property-based or fuzz testing for parsers, filesystems, protocol handlers and user-facing syscall inputs where practical.
+- Preserve serial logs and machine-readable test checkpoints.
+- Test multiple memory sizes, CPU counts and device configurations in emulation.
+- Maintain a hardware compatibility matrix; QEMU success is not evidence of physical-hardware support.
+- Keep documentation and changelogs aligned with actual merged functionality.
+
+## Current milestone and release policy
+
+- **0.1.0** is the published experimental foundation. Its release assets remain unchanged.
+- **0.2.0** is the active development line. The eight stages above are the ordered architectural programme; work may span multiple releases if quality requires it.
+- A stage is complete only when its implementation, tests, documentation and failure behaviour have been reviewed.
+- Do not claim a subsystem is supported merely because a minimal path works in one emulator configuration.
+- Do not merge unfinished or failing work to meet a schedule. There is no fixed release date.
 
 ## Contributing
 
-Contributions are welcome in implementation, tests and documentation. Please review [CONTRIBUTING.md](CONTRIBUTING.md), check the [open issues](https://github.com/vanmassey/kanga/issues), and open an issue before starting a substantial architectural change.
+Contributions in implementation, testing, architecture review and documentation are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md), review the [open issues](https://github.com/vanmassey/kanga/issues), and discuss substantial architectural changes before implementation.
