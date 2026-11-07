@@ -48,6 +48,10 @@ The manager's page-table lock and the physical allocator's lock disable local ma
 
 During QEMU boot, Kanga allocates three distinct frames, verifies direct-map memory access, returns and reuses a frame, deliberately attempts a duplicate free, allocates a three-frame contiguous run, returns all diagnostic frames, and checks that the final free-frame count matches the initial count. The virtual-memory self-test additionally exercises page-table creation, mapping, translation and unmapping. The QEMU smoke test checks the serial output for successful diagnostics.
 
+## Kernel task stacks
+
+The initial scheduler allocates a separate 16 KiB kernel stack for each worker thread from the kernel heap. The bootstrap thread continues to use the bootloader-provided kernel stack. Timer-driven context switches preserve the general-purpose register frame and the 512-byte FXSAVE state, and each worker begins with a constructed ring-0 interrupt-return frame. Task stacks remain allocated for the lifetime of these initial non-terminating workers; task exit and stack reclamation are not implemented yet.
+
 ## Remaining work
 
 - extending physical-frame management beyond the current 64 GiB bitmap limit;
