@@ -5,9 +5,7 @@
 use core::fmt::Write;
 use core::panic::PanicInfo;
 use limine::memory_map::EntryType;
-use limine::request::{
-    HhdmRequest, MemoryMapRequest, RequestsEndMarker, RequestsStartMarker,
-};
+use limine::request::{HhdmRequest, MemoryMapRequest, RequestsEndMarker, RequestsStartMarker};
 use limine::BaseRevision;
 
 mod heap;
