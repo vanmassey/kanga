@@ -7,7 +7,7 @@
 use core::alloc::Layout;
 use core::arch::{asm, global_asm};
 use core::cell::UnsafeCell;
-use core::ptr;
+use core::mem::size_of;\nuse core::ptr;
 use core::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 
 use crate::{heap, pic, pit};
@@ -17,6 +17,7 @@ const KERNEL_STACK_SIZE: usize = 16 * 1024;
 const FXSAVE_SIZE: usize = 512;
 const CONTEXT_POINTER_OFFSET: usize = FXSAVE_SIZE;
 const REGISTER_FRAME_OFFSET: usize = FXSAVE_SIZE + 8;
+const REGISTER_FRAME_CODE_SEGMENT_OFFSET: usize = 15 * size_of::<u64>() + size_of::<u64>();
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(u8)]
@@ -257,6 +258,21 @@ extern "C" fn scheduler_tick(context: usize) -> usize {
     pic::acknowledge_master_irq();
 
     if !ENABLED.load(Ordering::Acquire) {
+        return context;
+    }
+
+    // A same-CPL interrupt frame contains only RIP, CS and RFLAGS. A ring-3
+    // interrupt also contains the interrupted RSP and SS. Until tasks own
+    // separate kernel-entry stacks and privilege-aware saved contexts, never
+    // hand a user-originated frame to the kernel-thread context switcher.
+    let code_segment = unsafe {
+        ptr::read_unaligned(
+            (context
+                + REGISTER_FRAME_OFFSET
+                + REGISTER_FRAME_CODE_SEGMENT_OFFSET) as *const u64,
+        )
+    };
+    if code_segment & 0x3 != 0 {
         return context;
     }
 
