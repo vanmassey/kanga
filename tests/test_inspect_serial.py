@@ -40,7 +40,7 @@ class SerialInspectorTests(unittest.TestCase):
     def test_all_checkpoints_pass(self):
         result = self.run_inspector(GOOD_LOG)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("all 10 checks found", result.stdout)
+        self.assertIn("all 11 checks found", result.stdout)
         self.assertNotIn("MISS", result.stdout)
 
     def test_missing_checkpoint_is_reported(self):
