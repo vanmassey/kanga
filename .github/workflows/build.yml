@@ -58,7 +58,7 @@ jobs:
           grep -F "Kanga kernel entry reached" build/serial.log
           grep -F "Interrupts: 256-entry IDT installed" build/serial.log
           grep -F "Interrupts: CPU exception gates 0-31 configured" build/serial.log
-          grep -F "Interrupts: PIC remapped; timer IRQ0 and keyboard IRQ1 unmasked" build/serial.log
+          grep -F "Interrupts: PIC remapped; timer IRQ0 enabled, other legacy IRQs masked" build/serial.log
           grep -F "Timer: PIT configured at 100 Hz" build/serial.log
           grep -F "Scheduler: pre-emptive round-robin enabled (3 kernel threads)" build/serial.log
           grep -F "Memory map entries:" build/serial.log
