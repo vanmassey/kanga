@@ -364,6 +364,24 @@ pub fn user_code_selector() -> Option<u16> {
     }
 }
 
+/// Read back the installed user descriptors for boot-time diagnostics.
+pub fn user_descriptor_values() -> Option<(u64, u64)> {
+    let data_selector = user_data_selector()?;
+    let code_selector = user_code_selector()?;
+    let mut pointer = DescriptorTablePointer { limit: 0, base: 0 };
+    // SAFETY: SGDT writes the current descriptor-table register to this local.
+    unsafe {
+        asm!("sgdt [{}]", in(reg) &mut pointer, options(nostack, preserves_flags));
+    }
+    let base = unsafe { ptr::addr_of!(pointer.base).read_unaligned() as usize };
+    let data_address = base.checked_add(usize::from(data_selector & !7))?;
+    let code_address = base.checked_add(usize::from(code_selector & !7))?;
+    // SAFETY: Both selectors were installed by install_tss within the active GDT.
+    let data = unsafe { ptr::read_unaligned(data_address as *const u64) };
+    let code = unsafe { ptr::read_unaligned(code_address as *const u64) };
+    Some((data, code))
+}
+
 macro_rules! no_error_exception {
     ($handler:ident, $vector:expr, $name:literal) => {
         extern "x86-interrupt" fn $handler(frame: InterruptStackFrame) {
