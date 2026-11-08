@@ -81,10 +81,27 @@ pub extern "C" fn kanga_entry() -> ! {
             serial::Writer,
             "Scheduler: pre-emptive round-robin enabled (3 kernel threads)"
         );
+        if let Some(hhdm) = HHDM_REQUEST.get_response() {
+            let ring3_test_passed = scheduler::ring3_timer_self_test(hhdm.offset());
+            let _ = writeln!(
+                serial::Writer,
+                "Ring-3 timer return test: {} (user context resumed after timer interrupts)",
+                if ring3_test_passed { "passed" } else { "FAILED" }
+            );
+        } else {
+            let _ = writeln!(
+                serial::Writer,
+                "Ring-3 timer return test: FAILED (HHDM unavailable)"
+            );
+        }
     } else {
         let _ = writeln!(
             serial::Writer,
             "Scheduler: unavailable; continuing on bootstrap thread"
+        );
+        let _ = writeln!(
+            serial::Writer,
+            "Ring-3 timer return test: FAILED (scheduler unavailable)"
         );
     }
     let _ = writeln!(serial::Writer, "Kernel initialisation complete");
