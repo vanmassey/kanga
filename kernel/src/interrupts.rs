@@ -189,7 +189,6 @@ pub fn initialise() {
             selector,
             0,
         );
-        set_gate(idt, 0x21, keyboard_irq as *const () as usize, selector, 0);
 
         let pointer = IdtPointer {
             limit: (size_of::<[IdtEntry; IDT_ENTRIES]>() - 1) as u16,
@@ -214,7 +213,7 @@ pub fn initialise() {
     crate::pic::initialise();
     let _ = writeln!(
         crate::serial::Writer,
-        "Interrupts: PIC remapped; timer IRQ0 and keyboard IRQ1 unmasked"
+        "Interrupts: PIC remapped; timer IRQ0 enabled, other legacy IRQs masked"
     );
     crate::pit::initialise();
     let _ = writeln!(crate::serial::Writer, "Timer: PIT configured at 100 Hz");
@@ -305,11 +304,6 @@ fn install_tss() -> bool {
 unsafe fn stack_top(stack: *mut EmergencyStack) -> u64 {
     // SAFETY: The stack is a static, correctly aligned object of fixed size.
     unsafe { (*stack).0.as_mut_ptr().add(EMERGENCY_STACK_SIZE) as u64 }
-}
-
-extern "x86-interrupt" fn keyboard_irq(_frame: InterruptStackFrame) {
-    crate::keyboard::handle_interrupt();
-    crate::pic::acknowledge_master_irq();
 }
 
 macro_rules! no_error_exception {
