@@ -58,6 +58,14 @@ pub extern "C" fn kanga_entry() -> ! {
     let _ = writeln!(serial::Writer, "Boot protocol: Limine");
 
     interrupts::initialise();
+    if let Some((data_descriptor, code_descriptor)) = interrupts::user_descriptor_values() {
+        let _ = writeln!(
+            serial::Writer,
+            "Privilege: user GDT data=0x{:016x}, code=0x{:016x}",
+            data_descriptor,
+            code_descriptor
+        );
+    }
     match rtc::read() {
         Some(clock) => {
             let _ = writeln!(
