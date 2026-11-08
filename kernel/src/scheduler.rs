@@ -5,6 +5,7 @@
 //! allocates and never formats output in interrupt context.
 
 use core::alloc::Layout;
+use core::fmt::Write as _;
 use core::arch::{asm, global_asm};
 use core::cell::UnsafeCell;
 use core::mem::size_of;
@@ -526,6 +527,16 @@ pub fn ring3_timer_self_test(hhdm_offset: u64) -> bool {
         ptr::write_volatile(
             core::ptr::addr_of_mut!(KANGA_RING3_USER_SS),
             u64::from(data_selector),
+        );
+        let entry_cs = ptr::read_volatile(core::ptr::addr_of!(KANGA_RING3_USER_CS));
+        let entry_ss = ptr::read_volatile(core::ptr::addr_of!(KANGA_RING3_USER_SS));
+        let entry_rsp = ptr::read_volatile(core::ptr::addr_of!(KANGA_RING3_USER_RSP));
+        let _ = writeln!(
+            crate::serial::Writer,
+            "Ring-3 IRET frame: CS=0x{:04x}, SS=0x{:04x}, RSP=0x{:016x}",
+            entry_cs,
+            entry_ss,
+            entry_rsp
         );
         kanga_enter_ring3_test();
     }
