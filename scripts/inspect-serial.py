@@ -21,9 +21,9 @@ CHECKPOINTS = (
     "Virtual mapping, translation and unmapping test: passed",
     "Frame allocator integrity test: passed",
     "Frame memory test: passed",
-    "Display: framebuffer text console ready",
-    "Starting command shell",
-    "Kanga> ",
+    "Kernel heap initialisation: passed",
+    "Kernel initialisation complete",
+    "Kernel idle loop reached",
 )
 
 FATAL_MARKERS = (
