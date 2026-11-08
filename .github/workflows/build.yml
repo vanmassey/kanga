@@ -14,7 +14,7 @@ jobs:
           components: rust-src, rustfmt
       - name: Install image and emulator tools
         run: |
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends build-essential xorriso qemu-system-x86 socat
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends build-essential xorriso qemu-system-x86
       - name: Check shell scripts
         run: sh -n scripts/build-iso.sh scripts/check.sh scripts/run-qemu.sh
       - name: Test host-side utilities
@@ -23,27 +23,17 @@ jobs:
         run: cargo fmt --all -- --check
       - name: Build bootable image
         run: sh scripts/build-iso.sh
-      - name: Boot Kanga and test keyboard IRQ in QEMU
+      - name: Boot Kanga kernel in QEMU
         run: |
           set -eu
-          rm -f build/serial.log build/qemu-monitor.sock build/kanga-screen.ppm build/kanga-help-screen.ppm
+          rm -f build/serial.log
           qemu-system-x86_64 \
             -machine pc -cpu max -m 256M -boot d -cdrom build/kanga.iso \
             -serial file:build/serial.log \
-            -monitor unix:build/qemu-monitor.sock,server,nowait \
             -display none -no-reboot -no-shutdown &
           qemu_pid=$!
           cleanup() {
             status=$?
-            # Preserve the first screenshot if the normal test path already
-            # captured it. Otherwise, take a best-effort screenshot before
-            # stopping QEMU so failures still leave diagnostic evidence.
-            if [ ! -s build/kanga-screen.ppm ] && kill -0 "$qemu_pid" 2>/dev/null; then
-              if [ -S build/qemu-monitor.sock ]; then
-                printf 'screendump build/kanga-screen.ppm\n' |
-                  socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null 2>&1 || true
-              fi
-            fi
             kill "$qemu_pid" 2>/dev/null || true
             wait "$qemu_pid" 2>/dev/null || true
             return "$status"
@@ -51,7 +41,7 @@ jobs:
           trap cleanup EXIT
 
           for attempt in $(seq 1 100); do
-            if grep -Fq "Kanga> " build/serial.log 2>/dev/null; then
+            if grep -Fq "Kernel idle loop reached" build/serial.log 2>/dev/null; then
               break
             fi
             if ! kill -0 "$qemu_pid" 2>/dev/null; then
@@ -60,49 +50,10 @@ jobs:
             fi
             sleep 0.1
           done
-          grep -F "Kanga> " build/serial.log
+          grep -F "Kernel idle loop reached" build/serial.log
           sleep 1
-          printf 'screendump build/kanga-colour-screen.ppm\n' |
-            socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
-
-          # Exercise the multi-line HELP output before later commands scroll it away.
-          for key in h e l p ret; do
-            printf 'sendkey %s 80\n' "$key" | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
-            sleep 0.15
-          done
-          sleep 0.5
-          printf 'screendump build/kanga-help-screen.ppm\n' |
-            socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
-
-          for key in d i r ret v e r ret e c h o spc h e l l o spc k a n g a ret t i m e ret t a s k s ret d a t e ret u p t i m e ret w r i t e spc n o t e dot t x t spc h e l l o spc f r o m spc k a n g a ret t y p e spc n o t e dot t x t ret d i r ret d e l spc n o t e dot t x t ret d i r ret; do
-            printf 'sendkey %s 80\n' "$key" | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
-            sleep 0.15
-          done
-          sleep 1
-          for key in a b o u t ret c a l ret b a n a n a ret; do
-            printf 'sendkey %s 80\n' "$key" | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
-            sleep 0.15
-          done
-          sleep 0.5
-          # Up/Down recall shell history; Page Up/Down control scrollback.
-          printf 'sendkey up 80\n' | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
-          sleep 0.3
-          printf 'sendkey down 80\n' | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
-          sleep 0.2
-          printf 'sendkey up 80\n' | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
-          sleep 0.2
-          printf 'sendkey ret 80\n' | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
-          sleep 0.3
-          printf 'sendkey pgup 80\n' | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
-          sleep 0.3
-          printf 'screendump build/kanga-scrollback-screen.ppm\n' | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
-          printf 'sendkey pgdn 80\n' | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
-          sleep 0.3
-          printf 'screendump build/kanga-screen.ppm\n' | socat -T1 - UNIX-CONNECT:build/qemu-monitor.sock >/dev/null
-          sleep 0.2
           cat build/serial.log
-          # This was emitted by Limine when QEMU's default CPU model lacked
-          # 1 GiB page support. Keep the emulator CPU feature set explicit.
+
           ! grep -F "paging: 1GiB pages are not supported" build/serial.log
           grep -F "Kanga kernel entry reached" build/serial.log
           grep -F "Interrupts: 256-entry IDT installed" build/serial.log
@@ -113,7 +64,6 @@ jobs:
           grep -F "Task 1: worker-a" build/serial.log
           grep -F "Task 2: worker-b" build/serial.log
           grep -E "Worker progress: worker-a=[1-9][0-9]* worker-b=[1-9][0-9]*" build/serial.log
-          grep -F "Interrupts: keyboard IRQ1 enabled" build/serial.log
           grep -F "Memory map entries:" build/serial.log
           grep -F "Physical bitmap allocator: " build/serial.log
           grep -F "Virtual memory manager: x86-64 four-level page tables ready" build/serial.log
@@ -127,33 +77,12 @@ jobs:
           grep -F "Frame allocator integrity test: passed" build/serial.log
           grep -F "Allocated frame virtual address:" build/serial.log
           grep -F "Frame memory test: passed" build/serial.log
-          grep -F "Display: ANSI colour framebuffer text console" build/serial.log
-          grep -F "Display: framebuffer text console ready" build/serial.log
-          grep -F "| PS/2 keyboard" build/serial.log
-          grep -F "| Command interpreter" build/serial.log
-          grep -F "Type HELP to browse commands." build/serial.log
-          grep -F "Kanga OS  |  x86_64  |  Limine boot protocol" build/serial.log
-          grep -F "This program comes with ABSOLUTELY NO WARRANTY." build/serial.log
-          grep -F "You may redistribute it under the GNU GPL version 2." build/serial.log
-          grep -F "License: https://github.com/vanmassey/kanga/blob/main/LICENSE" build/serial.log
-          grep -F "KANGA COMMAND REFERENCE" build/serial.log
-          grep -F "( o.o )" build/serial.log
-          grep -F ">-v-<" build/serial.log
-          grep -F "Kanga can't find 'banana'. It may have hopped off." build/serial.log
-          grep -F "| KangaFS RAM filesystem" build/serial.log
-          grep -F "Saved note.txt (16 bytes)." build/serial.log
-          grep -F "hello from kanga" build/serial.log
-          grep -F "Deleted note.txt." build/serial.log
-          ! grep -F "PC speaker" build/serial.log
-          test -s build/kanga-screen.ppm
-          test -s build/kanga-help-screen.ppm
-          test -s build/kanga-scrollback-screen.ppm
-          ! cmp -s build/kanga-screen.ppm build/kanga-scrollback-screen.ppm
-          python3 scripts/check-framebuffer.py build/kanga-screen.ppm
-          python3 scripts/check-framebuffer.py build/kanga-help-screen.ppm
-          python3 scripts/check-framebuffer.py build/kanga-scrollback-screen.ppm
-          python3 scripts/check-framebuffer.py build/kanga-colour-screen.ppm --expect-ansi
-      - name: Upload QEMU screenshot, bootable ISO and serial log
+          grep -F "Kernel heap initialisation: passed" build/serial.log
+          grep -F "Kernel heap allocation and reclamation test: passed" build/serial.log
+          grep -F "Kernel initialisation complete" build/serial.log
+          ! grep -F "Kanga> " build/serial.log
+          ! grep -F "Display: framebuffer text console" build/serial.log
+      - name: Upload bootable ISO and serial log
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -161,9 +90,5 @@ jobs:
           path: |
             build/kanga.iso
             build/serial.log
-            build/kanga-screen.ppm
-            build/kanga-help-screen.ppm
-            build/kanga-scrollback-screen.ppm
-            build/kanga-colour-screen.ppm
           if-no-files-found: warn
           retention-days: 7
