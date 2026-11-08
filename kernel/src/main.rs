@@ -82,6 +82,7 @@ pub extern "C" fn kanga_entry() -> ! {
             "Scheduler: pre-emptive round-robin enabled (3 kernel threads)"
         );
         if let Some(hhdm) = HHDM_REQUEST.get_response() {
+            let _ = writeln!(serial::Writer, "Ring-3 timer return test: starting");
             let ring3_test_passed = scheduler::ring3_timer_self_test(hhdm.offset());
             let _ = writeln!(
                 serial::Writer,
