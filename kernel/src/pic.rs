@@ -25,8 +25,8 @@ pub fn initialise() {
         wait();
         write(SLAVE_DATA, 0x01);
         wait();
-        // Unmask IRQ0 (PIT timer) and IRQ1 (PS/2 keyboard).
-        write(MASTER_DATA, 0xFC);
+        // Unmask only IRQ0 (PIT timer). Keep unused device IRQs masked.
+        write(MASTER_DATA, 0xFE);
         write(SLAVE_DATA, 0xFF);
     }
 }
