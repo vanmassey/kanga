@@ -188,37 +188,6 @@ fn draw_rule(output: &mut Output<'_>, width: usize) {
     let _ = writeln!(output, "\x1b[0m");
 }
 
-fn draw_centered(output: &mut Output<'_>, width: usize, text: &str) {
-    let visible_width = text
-        .strip_prefix("\x1b[1;36m")
-        .and_then(|value| value.strip_suffix("\x1b[0m"))
-        .map_or(text.len(), str::len);
-    let inner_width = width.saturating_sub(4);
-    let padding = inner_width.saturating_sub(visible_width);
-    let left = padding / 2;
-    let right = padding.saturating_sub(left);
-    let _ = write!(output, "| ");
-    for _ in 0..left {
-        let _ = write!(output, " ");
-    }
-    let _ = write!(output, "{text}");
-    for _ in 0..right {
-        let _ = write!(output, " ");
-    }
-    let _ = writeln!(output, " |");
-}
-
-fn draw_panel_line(output: &mut Output<'_>, width: usize, text: &str) {
-    let inner_width = width.saturating_sub(4);
-    let visible = text.len().min(inner_width);
-    let _ = write!(output, "| ");
-    let _ = output.write_str(&text[..visible]);
-    for _ in visible..inner_width {
-        let _ = write!(output, " ");
-    }
-    let _ = writeln!(output, " |");
-}
-
 fn draw_status(output: &mut Output<'_>, _width: usize, name: &str, status: &str) {
     let _ = writeln!(output, "  \x1b[32m[+]\x1b[0m {name:<28} \x1b[32m{status}\x1b[0m");
 }
