@@ -74,7 +74,7 @@ pub extern "C" fn kanga_entry() -> ! {
     }
     let _ = writeln!(serial::Writer, "Kernel initialisation complete");
     let _ = writeln!(serial::Writer, "Kernel idle loop reached");
-    stop()
+    idle()
 }
 
 fn report_memory_map() {
@@ -299,6 +299,16 @@ fn report_memory_map() {
             "Kernel heap allocation and reclamation test: {}",
             if heap_test { "passed" } else { "FAILED" }
         );
+    }
+}
+
+fn idle() -> ! {
+    loop {
+        // Keep interrupts enabled so the timer and scheduler continue running.
+        // SAFETY: HLT is valid in the privileged kernel context.
+        unsafe {
+            core::arch::asm!("hlt", options(nomem, nostack));
+        }
     }
 }
 
