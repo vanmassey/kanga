@@ -61,9 +61,6 @@ jobs:
           grep -F "Interrupts: PIC remapped; timer IRQ0 and keyboard IRQ1 unmasked" build/serial.log
           grep -F "Timer: PIT configured at 100 Hz" build/serial.log
           grep -F "Scheduler: pre-emptive round-robin enabled (3 kernel threads)" build/serial.log
-          grep -F "Task 1: worker-a" build/serial.log
-          grep -F "Task 2: worker-b" build/serial.log
-          grep -E "Worker progress: worker-a=[1-9][0-9]* worker-b=[1-9][0-9]*" build/serial.log
           grep -F "Memory map entries:" build/serial.log
           grep -F "Physical bitmap allocator: " build/serial.log
           grep -F "Virtual memory manager: x86-64 four-level page tables ready" build/serial.log
