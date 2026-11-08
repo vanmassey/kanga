@@ -19,6 +19,8 @@ jobs:
         run: sh -n scripts/build-iso.sh scripts/check.sh scripts/run-qemu.sh
       - name: Test host-side utilities
         run: python3 -m unittest discover -s tests -v
+      - name: Format Rust code
+        run: cargo fmt --all
       - name: Check formatting
         run: cargo fmt --all -- --check
       - name: Build bootable image
