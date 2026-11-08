@@ -7,7 +7,8 @@
 use core::alloc::Layout;
 use core::arch::{asm, global_asm};
 use core::cell::UnsafeCell;
-use core::mem::size_of;\nuse core::ptr;
+use core::mem::size_of;
+use core::ptr;
 use core::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 
 use crate::{heap, pic, pit};
