@@ -24,7 +24,7 @@ const RING3_TEST_CODE: u64 = 0x0000_4000_0000_0000;
 const RING3_TEST_DATA: u64 = RING3_TEST_CODE + 0x1000;
 const RING3_TEST_STACK: u64 = RING3_TEST_CODE + 0x2000;
 const RING3_TEST_DONE: u32 = 0x4B41_4E47;
-const RING3_TEST_DATA_POINTER: AtomicUsize = AtomicUsize::new(0);
+static RING3_TEST_DATA_POINTER: AtomicUsize = AtomicUsize::new(0);
 static RING3_TEST_ACTIVE: AtomicBool = AtomicBool::new(false);
 static RING3_TEST_PASSED: AtomicBool = AtomicBool::new(false);
 static RING3_TEST_FAILED: AtomicBool = AtomicBool::new(false);
@@ -447,9 +447,9 @@ pub fn ring3_timer_self_test(hhdm_offset: u64) -> bool {
         }
     }
 
-    let code_start = core::ptr::addr_of!(kanga_ring3_user_code_start);
-    let code_end = core::ptr::addr_of!(kanga_ring3_user_code_end);
-    let code_length = unsafe { code_end.offset_from(code_start) as usize };
+    let code_start = core::ptr::addr_of!(kanga_ring3_user_code_start) as usize;
+    let code_end = core::ptr::addr_of!(kanga_ring3_user_code_end) as usize;
+    let code_length = code_end.saturating_sub(code_start);
     if code_length == 0 || code_length > crate::memory::PAGE_SIZE as usize {
         restore_interrupts(interrupt_flags);
         return false;
@@ -475,7 +475,7 @@ pub fn ring3_timer_self_test(hhdm_offset: u64) -> bool {
     };
 
     unsafe {
-        ptr::copy_nonoverlapping(code_start, code_pointer, code_length);
+        ptr::copy_nonoverlapping(code_start as *const u8, code_pointer, code_length);
         ptr::write_bytes(data_pointer, 0, crate::memory::PAGE_SIZE as usize);
         ptr::write_bytes(stack_pointer, 0, crate::memory::PAGE_SIZE as usize);
     }
