@@ -134,7 +134,7 @@ extern "C" {
 
 /// Install two kernel worker threads and enable pre-emptive round-robin
 /// scheduling. The boot thread remains task zero and continues running the
-/// shell whenever it is selected by the timer.
+/// idle loop whenever it is selected by the timer.
 pub fn initialise() -> bool {
     let interrupt_flags: u64;
     // SAFETY: This is privileged x86-64 code; mask IRQ0 while publishing tasks.
@@ -242,6 +242,14 @@ pub fn statistics() -> (usize, u64, u64, u64) {
         WORKER_A_TICKS.load(Ordering::Relaxed),
         WORKER_B_TICKS.load(Ordering::Relaxed),
     )
+}
+
+/// Confirm that timer-driven pre-emption has run both worker threads.
+pub fn runtime_self_test() -> bool {
+    pit::ticks() >= 6
+        && CONTEXT_SWITCHES.load(Ordering::Relaxed) >= 6
+        && WORKER_A_TICKS.load(Ordering::Relaxed) > 0
+        && WORKER_B_TICKS.load(Ordering::Relaxed) > 0
 }
 
 extern "C" fn scheduler_tick(context: usize) -> usize {
