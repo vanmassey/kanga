@@ -58,6 +58,23 @@ pub extern "C" fn kanga_entry() -> ! {
     let _ = writeln!(serial::Writer, "Boot protocol: Limine");
 
     interrupts::initialise();
+    match rtc::read() {
+        Some(clock) => {
+            let _ = writeln!(
+                serial::Writer,
+                "RTC: {:04}-{:02}-{:02} {:02}:{:02}:{:02}",
+                clock.year,
+                clock.month,
+                clock.day,
+                clock.hour,
+                clock.minute,
+                clock.second
+            );
+        }
+        None => {
+            let _ = writeln!(serial::Writer, "RTC: unavailable or invalid CMOS time");
+        }
+    }
     report_memory_map();
     if scheduler::initialise() {
         let _ = writeln!(
@@ -314,6 +331,37 @@ fn idle() -> ! {
                 serial::Writer,
                 "Scheduler runtime test: passed (timer pre-emption and both workers observed)"
             );
+            let elapsed = pit::elapsed_tenths();
+            let (current, switches, worker_a_ticks, worker_b_ticks) = scheduler::statistics();
+            let _ = writeln!(
+                serial::Writer,
+                "Uptime: {}.{:01} seconds",
+                elapsed / 10,
+                elapsed % 10
+            );
+            let _ = writeln!(
+                serial::Writer,
+                "Scheduler: current task {}, {} context switches",
+                current,
+                switches
+            );
+            let _ = writeln!(
+                serial::Writer,
+                "Scheduler workers: A={} ticks, B={} ticks",
+                worker_a_ticks,
+                worker_b_ticks
+            );
+            for index in 0..3 {
+                if let Some((name, running)) = scheduler::task_info(index) {
+                    let _ = writeln!(
+                        serial::Writer,
+                        "Task {}: {}{}",
+                        index,
+                        name,
+                        if running { " (running)" } else { "" }
+                    );
+                }
+            }
             scheduler_reported = true;
         }
     }

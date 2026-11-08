@@ -8,11 +8,15 @@ use core::arch::asm;
 use core::fmt::Write;
 use core::mem::size_of;
 use core::ptr;
+use core::sync::atomic::{AtomicU16, Ordering};
 
 const IDT_ENTRIES: usize = 256;
 const EMERGENCY_STACK_SIZE: usize = 16 * 1024;
+const PRIVILEGE_STACK_SIZE: usize = 16 * 1024;
 const GDT_CAPACITY: usize = 16;
 const GDT_TSS_TYPE: u64 = 0x89;
+const USER_DATA_DESCRIPTOR: u64 = 0x00CF_F200_0000_FFFF;
+const USER_CODE_DESCRIPTOR: u64 = 0x00AF_FA00_0000_FFFF;
 const IST_DOUBLE_FAULT: u8 = 1;
 const IST_NMI: u8 = 2;
 const IST_MACHINE_CHECK: u8 = 3;
@@ -85,6 +89,9 @@ struct TaskStateSegment {
 #[repr(C, align(16))]
 struct EmergencyStack([u8; EMERGENCY_STACK_SIZE]);
 
+#[repr(C, align(16))]
+struct PrivilegeStack([u8; PRIVILEGE_STACK_SIZE]);
+
 static mut IDT: [IdtEntry; IDT_ENTRIES] = [IdtEntry::MISSING; IDT_ENTRIES];
 static mut GDT: [u64; GDT_CAPACITY] = [0; GDT_CAPACITY];
 static mut TSS: TaskStateSegment = TaskStateSegment {
@@ -100,6 +107,9 @@ static mut DOUBLE_FAULT_STACK: EmergencyStack = EmergencyStack([0; EMERGENCY_STA
 static mut NMI_STACK: EmergencyStack = EmergencyStack([0; EMERGENCY_STACK_SIZE]);
 static mut MACHINE_CHECK_STACK: EmergencyStack = EmergencyStack([0; EMERGENCY_STACK_SIZE]);
 static mut PAGE_FAULT_STACK: EmergencyStack = EmergencyStack([0; EMERGENCY_STACK_SIZE]);
+static mut RING3_ENTRY_STACK: PrivilegeStack = PrivilegeStack([0; PRIVILEGE_STACK_SIZE]);
+static USER_DATA_SELECTOR: AtomicU16 = AtomicU16::new(0);
+static USER_CODE_SELECTOR: AtomicU16 = AtomicU16::new(0);
 
 /// Installs the GDT TSS descriptor, exception gates, PIC and PIT.
 ///
@@ -198,6 +208,18 @@ pub fn initialise() {
     }
 
     let _ = writeln!(crate::serial::Writer, "Interrupts: 256-entry IDT installed");
+    if let (Some(code), Some(data)) = (user_code_selector(), user_data_selector()) {
+        let _ = writeln!(
+            crate::serial::Writer,
+            "Privilege: ring-3 code selector 0x{:04x}, data selector 0x{:04x}",
+            code,
+            data
+        );
+        let _ = writeln!(
+            crate::serial::Writer,
+            "Privilege: dedicated TSS RSP0 stack ready; ring 3 remains disabled"
+        );
+    }
     let _ = writeln!(
         crate::serial::Writer,
         "Interrupts: 32 vector-specific CPU exception handlers installed"
@@ -234,10 +256,11 @@ unsafe fn set_gate(idt: *mut IdtEntry, vector: usize, handler: usize, selector: 
     }
 }
 
-/// Copies the active GDT, appends a 64-bit TSS descriptor and loads TR.
+/// Copies the active GDT, appends ring-3 data/code descriptors and a TSS.
 ///
-/// Keeping all existing descriptors byte-for-byte preserves the code/data
-/// selectors supplied by Limine while giving the kernel a private TSS.
+/// Keeping all existing descriptors byte-for-byte preserves the selectors
+/// supplied by Limine. RSP0 points to a dedicated stack for future user-to-
+/// kernel privilege transitions; ring 3 is not entered by this initialisation.
 fn install_tss() -> bool {
     // SAFETY: The boot CPU is the only CPU and interrupts are still disabled.
     unsafe {
@@ -251,7 +274,7 @@ fn install_tss() -> bool {
         }
 
         let descriptor_index = old_length / size_of::<u64>();
-        if descriptor_index + 2 > GDT_CAPACITY {
+        if descriptor_index + 4 > GDT_CAPACITY {
             return false;
         }
 
@@ -263,9 +286,10 @@ fn install_tss() -> bool {
         let machine_check_top = stack_top(ptr::addr_of_mut!(MACHINE_CHECK_STACK));
         let page_fault_top = stack_top(ptr::addr_of_mut!(PAGE_FAULT_STACK));
 
+        let privilege_stack_top = stack_top_privilege(ptr::addr_of_mut!(RING3_ENTRY_STACK));
         ptr::addr_of_mut!(TSS).write(TaskStateSegment {
             reserved_1: 0,
-            rsp: [0; 3],
+            rsp: [privilege_stack_top, 0, 0],
             reserved_2: 0,
             ist: [
                 double_fault_top,
@@ -281,6 +305,10 @@ fn install_tss() -> bool {
             io_map_base: size_of::<TaskStateSegment>() as u16,
         });
 
+        gdt.add(descriptor_index).write(USER_DATA_DESCRIPTOR);
+        gdt.add(descriptor_index + 1).write(USER_CODE_DESCRIPTOR);
+
+        let tss_index = descriptor_index + 2;
         let tss_base = ptr::addr_of!(TSS) as u64;
         let tss_limit = (size_of::<TaskStateSegment>() - 1) as u64;
         let low = (tss_limit & 0xFFFF)
@@ -289,16 +317,20 @@ fn install_tss() -> bool {
             | ((tss_limit & 0xF000) << 32)
             | (((tss_base >> 24) & 0xFF) << 56);
         let high = tss_base >> 32;
-        gdt.add(descriptor_index).write(low);
-        gdt.add(descriptor_index + 1).write(high);
+        gdt.add(tss_index).write(low);
+        gdt.add(tss_index + 1).write(high);
 
         let new_gdtr = DescriptorTablePointer {
-            limit: ((descriptor_index + 2) * size_of::<u64>() - 1) as u16,
+            limit: ((descriptor_index + 4) * size_of::<u64>() - 1) as u16,
             base: gdt as u64,
         };
         asm!("lgdt [{}]", in(reg) &new_gdtr, options(readonly, nostack, preserves_flags));
 
-        let tss_selector = (descriptor_index * size_of::<u64>()) as u16;
+        let user_data_selector = ((descriptor_index * size_of::<u64>()) as u16) | 3;
+        let user_code_selector = (((descriptor_index + 1) * size_of::<u64>()) as u16) | 3;
+        let tss_selector = (tss_index * size_of::<u64>()) as u16;
+        USER_DATA_SELECTOR.store(user_data_selector, Ordering::Release);
+        USER_CODE_SELECTOR.store(user_code_selector, Ordering::Release);
         asm!("ltr {0:x}", in(reg) tss_selector, options(nostack, preserves_flags));
     }
     true
@@ -307,6 +339,27 @@ fn install_tss() -> bool {
 unsafe fn stack_top(stack: *mut EmergencyStack) -> u64 {
     // SAFETY: The stack is a static, correctly aligned object of fixed size.
     unsafe { (*stack).0.as_mut_ptr().add(EMERGENCY_STACK_SIZE) as u64 }
+}
+
+unsafe fn stack_top_privilege(stack: *mut PrivilegeStack) -> u64 {
+    // SAFETY: The stack is a static, correctly aligned object of fixed size.
+    unsafe { (*stack).0.as_mut_ptr().add(PRIVILEGE_STACK_SIZE) as u64 }
+}
+
+/// Return the ring-3 data selector installed in the private GDT.
+pub fn user_data_selector() -> Option<u16> {
+    match USER_DATA_SELECTOR.load(Ordering::Acquire) {
+        0 => None,
+        selector => Some(selector),
+    }
+}
+
+/// Return the ring-3 code selector installed in the private GDT.
+pub fn user_code_selector() -> Option<u16> {
+    match USER_CODE_SELECTOR.load(Ordering::Acquire) {
+        0 => None,
+        selector => Some(selector),
+    }
 }
 
 macro_rules! no_error_exception {
