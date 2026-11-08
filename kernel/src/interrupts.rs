@@ -221,7 +221,10 @@ pub fn initialise() {
     unsafe {
         asm!("sti", options(nomem, nostack));
     }
-    let _ = writeln!(crate::serial::Writer, "Interrupts: maskable interrupts enabled");
+    let _ = writeln!(
+        crate::serial::Writer,
+        "Interrupts: maskable interrupts enabled"
+    );
 }
 
 unsafe fn set_gate(idt: *mut IdtEntry, vector: usize, handler: usize, selector: u16, ist: u8) {
