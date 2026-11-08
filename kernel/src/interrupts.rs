@@ -208,6 +208,18 @@ pub fn initialise() {
     }
 
     let _ = writeln!(crate::serial::Writer, "Interrupts: 256-entry IDT installed");
+    if let (Some(code), Some(data)) = (user_code_selector(), user_data_selector()) {
+        let _ = writeln!(
+            crate::serial::Writer,
+            "Privilege: ring-3 code selector 0x{:04x}, data selector 0x{:04x}",
+            code,
+            data
+        );
+        let _ = writeln!(
+            crate::serial::Writer,
+            "Privilege: dedicated TSS RSP0 stack ready; ring 3 remains disabled"
+        );
+    }
     let _ = writeln!(
         crate::serial::Writer,
         "Interrupts: 32 vector-specific CPU exception handlers installed"
