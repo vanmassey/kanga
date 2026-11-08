@@ -54,6 +54,7 @@ jobs:
           done
           grep -F "Kernel idle loop reached" build/serial.log
           grep -F "Scheduler runtime test: passed (timer pre-emption and both workers observed)" build/serial.log
+          grep -F "Ring-3 timer return test: passed (user context resumed after timer interrupts)" build/serial.log
           sleep 1
           cat build/serial.log
 
