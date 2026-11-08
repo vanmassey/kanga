@@ -217,11 +217,11 @@ pub fn initialise() {
     );
     crate::pit::initialise();
     let _ = writeln!(crate::serial::Writer, "Timer: PIT configured at 100 Hz");
-    // SAFETY: The IDT, TSS, PIC and PIT are ready, and IRQ0/IRQ1 have handlers.
+    // SAFETY: The IDT, TSS, PIC and PIT are ready; only IRQ0 is unmasked.
     unsafe {
         asm!("sti", options(nomem, nostack));
     }
-    let _ = writeln!(crate::serial::Writer, "Interrupts: keyboard IRQ1 enabled");
+    let _ = writeln!(crate::serial::Writer, "Interrupts: maskable interrupts enabled");
 }
 
 unsafe fn set_gate(idt: *mut IdtEntry, vector: usize, handler: usize, selector: u16, ist: u8) {
