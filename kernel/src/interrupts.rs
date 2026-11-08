@@ -17,7 +17,7 @@ const GDT_CAPACITY: usize = 16;
 const GDT_TSS_TYPE: u64 = 0x89;
 // Match the long-mode ring-3 data descriptor format used by the code
 // descriptor. QEMU validates the descriptor's long-mode flag when IRETQ loads SS.
-const USER_DATA_DESCRIPTOR: u64 = 0x00AF_F200_0000_FFFF;
+const USER_DATA_DESCRIPTOR: u64 = 0x00AF_F300_0000_FFFF;
 const USER_CODE_DESCRIPTOR: u64 = 0x00AF_FA00_0000_FFFF;
 const IST_DOUBLE_FAULT: u8 = 1;
 const IST_NMI: u8 = 2;
