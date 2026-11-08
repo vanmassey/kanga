@@ -31,6 +31,15 @@ static RING3_TEST_FAILED: AtomicBool = AtomicBool::new(false);
 static RING3_TEST_INTERRUPTS: AtomicU64 = AtomicU64::new(0);
 static RING3_TEST_KERNEL_CS: AtomicUsize = AtomicUsize::new(0);
 
+#[no_mangle]
+static mut KANGA_RING3_USER_RIP: u64 = 0;
+#[no_mangle]
+static mut KANGA_RING3_USER_CS: u64 = 0;
+#[no_mangle]
+static mut KANGA_RING3_USER_RSP: u64 = 0;
+#[no_mangle]
+static mut KANGA_RING3_USER_SS: u64 = 0;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(u8)]
 enum TaskState {
@@ -180,11 +189,15 @@ global_asm!(
     "push r14",
     "push r15",
     "mov qword ptr [rip + kanga_ring3_kernel_rsp], rsp",
-    "push rdx",
-    "push rcx",
+    "mov rax, qword ptr [rip + KANGA_RING3_USER_SS]",
+    "push rax",
+    "mov rax, qword ptr [rip + KANGA_RING3_USER_RSP]",
+    "push rax",
     "push 0x202",
-    "push rsi",
-    "push rdi",
+    "mov rax, qword ptr [rip + KANGA_RING3_USER_CS]",
+    "push rax",
+    "mov rax, qword ptr [rip + KANGA_RING3_USER_RIP]",
+    "push rax",
     "iretq",
     ".global kanga_ring3_test_return",
     "kanga_ring3_test_return:",
@@ -208,7 +221,7 @@ global_asm!(
 extern "C" {
     #[link_name = "kanga_timer_interrupt_entry"]
     pub(crate) fn timer_interrupt_entry();
-    fn kanga_enter_ring3_test(code: u64, code_selector: u64, data_selector: u64, stack: u64);
+    fn kanga_enter_ring3_test();
     fn kanga_ring3_test_return();
     static kanga_ring3_user_code_start: u8;
     static kanga_ring3_user_code_end: u8;
@@ -504,12 +517,17 @@ pub fn ring3_timer_self_test(hhdm_offset: u64) -> bool {
 
     let user_stack = RING3_TEST_STACK + crate::memory::PAGE_SIZE - 16;
     unsafe {
-        kanga_enter_ring3_test(
-            RING3_TEST_CODE,
+        ptr::write_volatile(core::ptr::addr_of_mut!(KANGA_RING3_USER_RIP), RING3_TEST_CODE);
+        ptr::write_volatile(
+            core::ptr::addr_of_mut!(KANGA_RING3_USER_CS),
             u64::from(code_selector),
-            u64::from(data_selector),
-            user_stack,
         );
+        ptr::write_volatile(core::ptr::addr_of_mut!(KANGA_RING3_USER_RSP), user_stack);
+        ptr::write_volatile(
+            core::ptr::addr_of_mut!(KANGA_RING3_USER_SS),
+            u64::from(data_selector),
+        );
+        kanga_enter_ring3_test();
     }
 
     RING3_TEST_ACTIVE.store(false, Ordering::Release);
