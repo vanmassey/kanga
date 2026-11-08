@@ -266,11 +266,12 @@ extern "C" fn scheduler_tick(context: usize) -> usize {
     // interrupt also contains the interrupted RSP and SS. Until tasks own
     // separate kernel-entry stacks and privilege-aware saved contexts, never
     // hand a user-originated frame to the kernel-thread context switcher.
+    let register_frame = unsafe {
+        ptr::read_unaligned((context + CONTEXT_POINTER_OFFSET) as *const usize)
+    };
     let code_segment = unsafe {
         ptr::read_unaligned(
-            (context
-                + REGISTER_FRAME_OFFSET
-                + REGISTER_FRAME_CODE_SEGMENT_OFFSET) as *const u64,
+            (register_frame + REGISTER_FRAME_CODE_SEGMENT_OFFSET) as *const u64,
         )
     };
     if code_segment & 0x3 != 0 {
