@@ -6,16 +6,12 @@ use core::fmt::Write;
 use core::panic::PanicInfo;
 use limine::memory_map::EntryType;
 use limine::request::{
-    FramebufferRequest, HhdmRequest, MemoryMapRequest, RequestsEndMarker, RequestsStartMarker,
+    HhdmRequest, MemoryMapRequest, RequestsEndMarker, RequestsStartMarker,
 };
 use limine::BaseRevision;
 
-mod filesystem;
-mod font;
-mod graphics;
 mod heap;
 mod interrupts;
-mod keyboard;
 mod memory;
 /// Public x86-64 virtual-memory interface for the kernel.
 pub mod paging;
@@ -23,7 +19,6 @@ mod pic;
 mod pit;
 mod rtc;
 mod scheduler;
-mod shell;
 
 static mut FRAME_BITMAP: [u64; memory::BITMAP_WORDS] = [u64::MAX; memory::BITMAP_WORDS];
 
@@ -42,10 +37,6 @@ static MEMORY_MAP_REQUEST: MemoryMapRequest = MemoryMapRequest::new();
 #[used]
 #[link_section = ".limine_requests"]
 static HHDM_REQUEST: HhdmRequest = HhdmRequest::new();
-
-#[used]
-#[link_section = ".limine_requests"]
-static FRAMEBUFFER_REQUEST: FramebufferRequest = FramebufferRequest::new();
 
 #[used]
 #[link_section = ".limine_requests_end"]
@@ -81,50 +72,9 @@ pub extern "C" fn kanga_entry() -> ! {
             "Scheduler: unavailable; continuing on bootstrap thread"
         );
     }
-    let console = initialise_graphics();
-    let _ = writeln!(
-        serial::Writer,
-        "Initialisation complete; entering interactive shell"
-    );
-    shell::run(console)
-}
-
-fn initialise_graphics() -> Option<graphics::Console> {
-    // SAFETY: Limine's framebuffer response remains valid while boot mappings
-    // are retained, which Kanga does throughout this boot-time initialisation.
-    let response = FRAMEBUFFER_REQUEST.get_response();
-    let Some(response) = response else {
-        let _ = writeln!(serial::Writer, "Framebuffer: no response from bootloader");
-        return None;
-    };
-
-    let mut framebuffers = response.framebuffers();
-    let Some(framebuffer) = framebuffers.next() else {
-        let _ = writeln!(serial::Writer, "Framebuffer: no display devices available");
-        return None;
-    };
-
-    let _ = writeln!(
-        serial::Writer,
-        "Framebuffer: {}x{} at {} bpp",
-        framebuffer.width(),
-        framebuffer.height(),
-        framebuffer.bpp()
-    );
-
-    let _ = writeln!(
-        serial::Writer,
-        "Display: ANSI colour framebuffer text console"
-    );
-
-    // SAFETY: Limine's framebuffer mapping remains active for the kernel run.
-    let console = unsafe { graphics::Console::new(&framebuffer) };
-    if console.is_some() {
-        let _ = writeln!(serial::Writer, "Display: framebuffer text console ready");
-    } else {
-        let _ = writeln!(serial::Writer, "Display: text console unavailable");
-    }
-    console
+    let _ = writeln!(serial::Writer, "Kernel initialisation complete");
+    let _ = writeln!(serial::Writer, "Kernel idle loop reached");
+    stop()
 }
 
 fn report_memory_map() {
