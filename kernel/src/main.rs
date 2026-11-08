@@ -301,11 +301,20 @@ fn report_memory_map() {
 }
 
 fn idle() -> ! {
+    let mut scheduler_reported = false;
     loop {
         // Keep interrupts enabled so the timer and scheduler continue running.
         // SAFETY: HLT is valid in the privileged kernel context.
         unsafe {
             core::arch::asm!("hlt", options(nomem, nostack));
+        }
+
+        if !scheduler_reported && scheduler::runtime_self_test() {
+            let _ = writeln!(
+                serial::Writer,
+                "Scheduler runtime test: passed (timer pre-emption and both workers observed)"
+            );
+            scheduler_reported = true;
         }
     }
 }
