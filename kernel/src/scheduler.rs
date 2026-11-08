@@ -567,7 +567,7 @@ fn handle_ring3_test_interrupt(frame: *mut RegisterFrame) {
 }
 
 fn return_to_kernel_test_context(frame: &mut RegisterFrame) {
-    frame.instruction_pointer = kanga_ring3_test_return as usize as u64;
+    frame.instruction_pointer = kanga_ring3_test_return as *const () as usize as u64;
     frame.code_segment = RING3_TEST_KERNEL_CS.load(Ordering::Acquire) as u64;
     // Keep interrupts disabled until the assembly trampoline restores the
     // original kernel stack. The caller restores its original IF afterwards.
