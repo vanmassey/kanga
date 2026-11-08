@@ -26,53 +26,28 @@ pub fn run(mut console: Option<Console>) -> ! {
             .as_ref()
             .map_or(80, |display| display.columns().clamp(64, 160));
         let mut output = Output(console.as_mut());
-        draw_rule(&mut output, width);
-        draw_centered(&mut output, width, "\x1b[1;36mKANGA OS\x1b[0m");
-        draw_centered(&mut output, width, "SYSTEM CONSOLE");
-        draw_panel_line(&mut output, width, r" /\_/\");
-        draw_panel_line(&mut output, width, r"( o.o )");
-        draw_panel_line(&mut output, width, r" >-v-<");
-        draw_panel_line(&mut output, width, r" /   \");
-        draw_panel_line(&mut output, width, r"(_____)");
-        draw_rule(&mut output, width);
-        draw_panel_line(
-            &mut output,
-            width,
-            "Kanga OS  |  x86_64  |  Limine boot protocol",
-        );
-        draw_panel_line(&mut output, width, "(C) 2026 Kanga Development Team");
-        draw_panel_line(
-            &mut output,
-            width,
-            "This program comes with ABSOLUTELY NO WARRANTY.",
-        );
-        draw_panel_line(
-            &mut output,
-            width,
-            "You may redistribute it under the GNU GPL version 2.",
-        );
-        draw_panel_line(
-            &mut output,
-            width,
-            "License: https://github.com/vanmassey/kanga/blob/main/LICENSE",
+
+        // Keep the welcome screen deliberately compact: the shell should feel
+        // like a usable system console, not a large decorative boot poster.
+        let _ = writeln!(output, "\x1b[1;36mKANGA\x1b[0m  \x1b[90m/ SYSTEM CONSOLE\x1b[0m");
+        let _ = writeln!(
+            output,
+            "\x1b[90mIndependent x86_64 operating system  |  Limine\x1b[0m"
         );
         draw_rule(&mut output, width);
-        draw_panel_line(&mut output, width, "KERNEL STARTUP");
+        let _ = writeln!(output, "\x1b[1;36mKERNEL STARTUP\x1b[0m");
         draw_status(&mut output, width, "Kernel core", "READY");
         draw_status(&mut output, width, "Interrupt controller", "READY");
         draw_status(&mut output, width, "PS/2 keyboard", "READY");
         draw_status(&mut output, width, "KangaFS RAM filesystem", "READY");
         draw_status(&mut output, width, "Command interpreter", "READY");
         draw_rule(&mut output, width);
-        draw_panel_line(&mut output, width, "COMMAND INTERFACE");
-        draw_panel_line(&mut output, width, "Type HELP to browse commands.");
-        draw_panel_line(
-            &mut output,
-            width,
-            "Use Up and Down for command history; Page Up and Down for scrollback.",
+        let _ = writeln!(
+            output,
+            "\x1b[90mType HELP for commands. UP/DOWN: history. PGUP/PGDN: scrollback.\x1b[0m"
         );
-        draw_rule(&mut output, width);
-        let _ = write!(output, "\x1b[1;36mKanga> \x1b[0m");
+        let _ = writeln!(output);
+        let _ = write!(output, "\x1b[1;36mKanga\x1b[0m> ");
     }
 
     let mut line = [0_u8; LINE_CAPACITY];
@@ -206,11 +181,11 @@ pub fn run(mut console: Option<Console>) -> ! {
 }
 
 fn draw_rule(output: &mut Output<'_>, width: usize) {
-    let _ = write!(output, "\x1b[1;36m+");
-    for _ in 0..width.saturating_sub(2) {
+    let _ = write!(output, "\x1b[90m");
+    for _ in 0..width.min(160) {
         let _ = write!(output, "-");
     }
-    let _ = writeln!(output, "+\x1b[0m");
+    let _ = writeln!(output, "\x1b[0m");
 }
 
 fn draw_centered(output: &mut Output<'_>, width: usize, text: &str) {
@@ -244,19 +219,8 @@ fn draw_panel_line(output: &mut Output<'_>, width: usize, text: &str) {
     let _ = writeln!(output, " |");
 }
 
-fn draw_status(output: &mut Output<'_>, width: usize, name: &str, status: &str) {
-    let inner_width = width.saturating_sub(4);
-    let label_width = inner_width.saturating_sub(status.len() + 3);
-    let label = if name.len() > label_width {
-        &name[..label_width]
-    } else {
-        name
-    };
-    let _ = write!(output, "| {label}");
-    for _ in label.len()..label_width {
-        let _ = write!(output, ".");
-    }
-    let _ = writeln!(output, " \x1b[32m[{status}]\x1b[0m |");
+fn draw_status(output: &mut Output<'_>, _width: usize, name: &str, status: &str) {
+    let _ = writeln!(output, "  \x1b[32m[+]\x1b[0m {name:<28} \x1b[32m{status}\x1b[0m");
 }
 
 fn execute(command_line: &[u8], console: Option<&mut Console>, filesystem: &mut FileSystem) {
