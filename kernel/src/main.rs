@@ -63,7 +63,12 @@ pub extern "C" fn kanga_entry() -> ! {
             let _ = writeln!(
                 serial::Writer,
                 "RTC: {:04}-{:02}-{:02} {:02}:{:02}:{:02}",
-                clock.year, clock.month, clock.day, clock.hour, clock.minute, clock.second
+                clock.year,
+                clock.month,
+                clock.day,
+                clock.hour,
+                clock.minute,
+                clock.second
             );
         }
         None => {
@@ -337,12 +342,14 @@ fn idle() -> ! {
             let _ = writeln!(
                 serial::Writer,
                 "Scheduler: current task {}, {} context switches",
-                current, switches
+                current,
+                switches
             );
             let _ = writeln!(
                 serial::Writer,
                 "Scheduler workers: A={} ticks, B={} ticks",
-                worker_a_ticks, worker_b_ticks
+                worker_a_ticks,
+                worker_b_ticks
             );
             for index in 0..3 {
                 if let Some((name, running)) = scheduler::task_info(index) {
