@@ -66,6 +66,14 @@ pub extern "C" fn kanga_entry() -> ! {
             code_descriptor
         );
     }
+    if let Some((valid, rights)) = interrupts::user_data_access_rights() {
+        let _ = writeln!(
+            serial::Writer,
+            "Privilege: user data descriptor LAR valid={}, rights=0x{:08x}",
+            valid,
+            rights
+        );
+    }
     match rtc::read() {
         Some(clock) => {
             let _ = writeln!(
