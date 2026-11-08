@@ -382,6 +382,25 @@ pub fn user_descriptor_values() -> Option<(u64, u64)> {
     Some((data, code))
 }
 
+/// Ask the processor to validate the installed ring-3 data selector.
+pub fn user_data_access_rights() -> Option<(bool, u32)> {
+    let selector = user_data_selector()?;
+    let rights: u32;
+    let valid: u8;
+    // SAFETY: LAR is a non-mutating descriptor validation instruction.
+    unsafe {
+        asm!(
+            "lar {rights:e}, {selector:x}",
+            "setz {valid}",
+            rights = out(reg) rights,
+            selector = in(reg) selector,
+            valid = out(reg_byte) valid,
+            options(nostack)
+        );
+    }
+    Some((valid != 0, rights))
+}
+
 macro_rules! no_error_exception {
     ($handler:ident, $vector:expr, $name:literal) => {
         extern "x86-interrupt" fn $handler(frame: InterruptStackFrame) {
