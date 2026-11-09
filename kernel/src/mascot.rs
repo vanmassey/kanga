@@ -117,7 +117,7 @@ pub fn draw() -> bool {
         return false;
     };
     // SAFETY: The response was supplied by Limine and remains mapped.
-    let Some(framebuffers) = (unsafe { response.get_framebuffers() }) else {
+    let Some(framebuffers) = (unsafe { response.framebuffers() }) else {
         return false;
     };
     let Some(framebuffer) = framebuffers.first() else {
