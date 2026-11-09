@@ -116,11 +116,8 @@ pub fn draw() -> bool {
     let Some(response) = (unsafe { FRAMEBUFFER_REQUEST.get_response() }) else {
         return false;
     };
-    // SAFETY: The response was supplied by Limine and remains mapped.
-    let Some(framebuffers) = (unsafe { response.framebuffers() }) else {
-        return false;
-    };
-    let Some(framebuffer) = framebuffers.first() else {
+    // The Limine 0.5 API exposes framebuffers as an iterator.
+    let Some(framebuffer) = response.framebuffers().next() else {
         return false;
     };
     if framebuffer.bpp() != 32 || framebuffer.memory_model() != MemoryModel::RGB {
