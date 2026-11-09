@@ -52,8 +52,14 @@ jobs:
             fi
             sleep 0.1
           done
+          if ! grep -Fq "Scheduler runtime test: passed" build/serial.log; then
+            echo "QEMU did not reach the scheduler checkpoint; serial log follows:"
+            cat build/serial.log || true
+            exit 1
+          fi
           grep -F "Kernel idle loop reached" build/serial.log
           grep -F "Scheduler runtime test: passed (timer pre-emption and both workers observed)" build/serial.log
+          grep -F "Ring-3 timer return test: passed (user context resumed after timer interrupts)" build/serial.log
           sleep 1
           cat build/serial.log
 

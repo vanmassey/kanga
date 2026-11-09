@@ -58,6 +58,22 @@ pub extern "C" fn kanga_entry() -> ! {
     let _ = writeln!(serial::Writer, "Boot protocol: Limine");
 
     interrupts::initialise();
+    if let Some((data_descriptor, code_descriptor)) = interrupts::user_descriptor_values() {
+        let _ = writeln!(
+            serial::Writer,
+            "Privilege: user GDT data=0x{:016x}, code=0x{:016x}",
+            data_descriptor,
+            code_descriptor
+        );
+    }
+    if let Some((valid, rights)) = interrupts::user_data_access_rights() {
+        let _ = writeln!(
+            serial::Writer,
+            "Privilege: user data descriptor LAR valid={}, rights=0x{:08x}",
+            valid,
+            rights
+        );
+    }
     match rtc::read() {
         Some(clock) => {
             let _ = writeln!(
@@ -81,10 +97,28 @@ pub extern "C" fn kanga_entry() -> ! {
             serial::Writer,
             "Scheduler: pre-emptive round-robin enabled (3 kernel threads)"
         );
+        if let Some(hhdm) = HHDM_REQUEST.get_response() {
+            let _ = writeln!(serial::Writer, "Ring-3 timer return test: starting");
+            let ring3_test_passed = scheduler::ring3_timer_self_test(hhdm.offset());
+            let _ = writeln!(
+                serial::Writer,
+                "Ring-3 timer return test: {} (user context resumed after timer interrupts)",
+                if ring3_test_passed { "passed" } else { "FAILED" }
+            );
+        } else {
+            let _ = writeln!(
+                serial::Writer,
+                "Ring-3 timer return test: FAILED (HHDM unavailable)"
+            );
+        }
     } else {
         let _ = writeln!(
             serial::Writer,
             "Scheduler: unavailable; continuing on bootstrap thread"
+        );
+        let _ = writeln!(
+            serial::Writer,
+            "Ring-3 timer return test: FAILED (scheduler unavailable)"
         );
     }
     let _ = writeln!(serial::Writer, "Kernel initialisation complete");

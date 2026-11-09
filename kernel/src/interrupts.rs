@@ -15,7 +15,9 @@ const EMERGENCY_STACK_SIZE: usize = 16 * 1024;
 const PRIVILEGE_STACK_SIZE: usize = 16 * 1024;
 const GDT_CAPACITY: usize = 16;
 const GDT_TSS_TYPE: u64 = 0x89;
-const USER_DATA_DESCRIPTOR: u64 = 0x00CF_F200_0000_FFFF;
+// Match the long-mode ring-3 data descriptor format used by the code
+// descriptor. QEMU validates the descriptor's long-mode flag when IRETQ loads SS.
+const USER_DATA_DESCRIPTOR: u64 = 0x00AF_F300_0000_FFFF;
 const USER_CODE_DESCRIPTOR: u64 = 0x00AF_FA00_0000_FFFF;
 const IST_DOUBLE_FAULT: u8 = 1;
 const IST_NMI: u8 = 2;
@@ -360,6 +362,43 @@ pub fn user_code_selector() -> Option<u16> {
         0 => None,
         selector => Some(selector),
     }
+}
+
+/// Read back the installed user descriptors for boot-time diagnostics.
+pub fn user_descriptor_values() -> Option<(u64, u64)> {
+    let data_selector = user_data_selector()?;
+    let code_selector = user_code_selector()?;
+    let mut pointer = DescriptorTablePointer { limit: 0, base: 0 };
+    // SAFETY: SGDT writes the current descriptor-table register to this local.
+    unsafe {
+        asm!("sgdt [{}]", in(reg) &mut pointer, options(nostack, preserves_flags));
+    }
+    let base = unsafe { ptr::addr_of!(pointer.base).read_unaligned() as usize };
+    let data_address = base.checked_add(usize::from(data_selector & !7))?;
+    let code_address = base.checked_add(usize::from(code_selector & !7))?;
+    // SAFETY: Both selectors were installed by install_tss within the active GDT.
+    let data = unsafe { ptr::read_unaligned(data_address as *const u64) };
+    let code = unsafe { ptr::read_unaligned(code_address as *const u64) };
+    Some((data, code))
+}
+
+/// Ask the processor to validate the installed ring-3 data selector.
+pub fn user_data_access_rights() -> Option<(bool, u32)> {
+    let selector = user_data_selector()?;
+    let rights: u32;
+    let valid: u8;
+    // SAFETY: LAR is a non-mutating descriptor validation instruction.
+    unsafe {
+        asm!(
+            "lar {rights:e}, {selector:x}",
+            "setz {valid}",
+            rights = out(reg) rights,
+            selector = in(reg) selector,
+            valid = out(reg_byte) valid,
+            options(nostack)
+        );
+    }
+    Some((valid != 0, rights))
 }
 
 macro_rules! no_error_exception {
