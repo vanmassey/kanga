@@ -11,6 +11,7 @@ use limine::BaseRevision;
 mod heap;
 mod interrupts;
 mod memory;
+mod mascot;
 /// Public x86-64 virtual-memory interface for the kernel.
 pub mod paging;
 mod pic;
@@ -56,6 +57,12 @@ pub extern "C" fn kanga_entry() -> ! {
     let _ = writeln!(serial::Writer, "Kanga kernel {}", env!("CARGO_PKG_VERSION"));
     let _ = writeln!(serial::Writer, "Architecture: x86_64");
     let _ = writeln!(serial::Writer, "Boot protocol: Limine");
+
+    if mascot::draw() {
+        let _ = writeln!(serial::Writer, "Framebuffer mascot: Kanga rendered and centred");
+    } else {
+        let _ = writeln!(serial::Writer, "Framebuffer mascot: unavailable (no compatible RGB 32-bit framebuffer)");
+    }
 
     interrupts::initialise();
     match rtc::read() {
