@@ -81,8 +81,7 @@ fn read_function(bus: u8, device: u8, function: u8, id: u32) -> Option<Device> {
     }
 
     let class = read_config(bus, device, function, 0x08);
-    let header = read_config(bus, device, function, 0x0C);
-
+    
     Some(Device {
         bus,
         device,
