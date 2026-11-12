@@ -42,7 +42,7 @@ for file in "$BIOS_CD" "$UEFI_CD" "$UEFI_APP" "$LIMINE_TOOL"; do
     fi
 done
 
-cargo build -Z build-std=core,compiler_builtins
+cargo build -Z build-std=core,alloc,compiler_builtins
 
 ISO_ROOT=build/iso-root
 rm -rf "$ISO_ROOT"
