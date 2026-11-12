@@ -1,9 +1,8 @@
 //! Virtually contiguous kernel heap backed by independently allocated frames.
 //!
-//! This explicit allocator is not yet installed as the process-wide
-//! `GlobalAlloc`.
+//! The heap is also installed as the kernel's process-wide Rust allocator.
 
-use core::alloc::Layout;
+use core::alloc::{GlobalAlloc, Layout};
 use core::cell::UnsafeCell;
 use core::mem::{align_of, size_of};
 use core::ptr;
@@ -133,6 +132,32 @@ impl Drop for HeapGuard<'_> {
 }
 
 static HEAP: HeapLock = HeapLock::new();
+static GLOBAL_DEALLOCATION_FAILURES: core::sync::atomic::AtomicUsize =
+    core::sync::atomic::AtomicUsize::new(0);
+
+/// The kernel's process-wide allocator, backed by the virtual-page heap.
+pub struct KernelAllocator;
+
+// SAFETY: The heap serialises allocation and deallocation internally. It is
+// initialised before any kernel code is allowed to perform dynamic allocation.
+unsafe impl GlobalAlloc for KernelAllocator {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        allocate(layout)
+    }
+
+    unsafe fn dealloc(&self, pointer: *mut u8, layout: Layout) {
+        // SAFETY: GlobalAlloc's caller contract requires a live allocation
+        // returned by this allocator and the exact layout used to allocate it.
+        if !unsafe { deallocate(pointer, layout) } {
+            GLOBAL_DEALLOCATION_FAILURES.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+}
+
+/// Number of invalid deallocation requests observed through GlobalAlloc.
+pub fn global_deallocation_failures() -> usize {
+    GLOBAL_DEALLOCATION_FAILURES.load(Ordering::Relaxed)
+}
 
 /// Initialise a virtual-page-backed heap with a 64 KiB initial capacity.
 ///
@@ -619,6 +644,40 @@ pub unsafe fn deallocate(pointer: *mut u8, layout: Layout) -> bool {
 
     reclaim_tail_pages(heap);
     true
+}
+
+/// Exercise the standard Rust `Vec` allocation path, including growth,
+/// reallocation, deallocation and return of grown heap pages.
+pub fn global_allocator_self_test() -> bool {
+    let failures_before = global_deallocation_failures();
+    let mut values: alloc::vec::Vec<u64> = alloc::vec::Vec::new();
+
+    for value in 0..65_536_u64 {
+        if values.try_reserve(1).is_err() {
+            return false;
+        }
+        values.push(value);
+    }
+
+    let contents_valid = values.len() == 65_536
+        && values
+            .iter()
+            .enumerate()
+            .all(|(index, value)| *value == index as u64);
+    drop(values);
+
+    let fully_reclaimed = statistics().is_some_and(|stats| {
+        stats.mapped_bytes == INITIAL_HEAP_BYTES
+            && stats.free_bytes == stats.mapped_bytes
+            && stats.largest_free_block == stats.mapped_bytes
+            && stats.free_block_count == 1
+            && stats.occupied_bytes == 0
+            && stats.fragmented_free_bytes == 0
+    });
+
+    contents_valid
+        && fully_reclaimed
+        && global_deallocation_failures() == failures_before
 }
 
 /// Exercise aligned allocation, zeroing, reuse and reclamation during boot.

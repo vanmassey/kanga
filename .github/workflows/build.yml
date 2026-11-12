@@ -83,6 +83,7 @@ jobs:
           grep -F "Frame memory test: passed" build/serial.log
           grep -F "Kernel heap initialisation: passed" build/serial.log
           grep -F "Kernel heap allocation and reclamation test: passed" build/serial.log
+          grep -F "Global allocator Vec integration test: passed" build/serial.log
           grep -F "Kernel initialisation complete" build/serial.log
           ! grep -F "Kanga> " build/serial.log
           grep -F "Kanga framebuffer console ready" build/serial.log
