@@ -9,7 +9,7 @@ use core::fmt::Write;
 
 use crate::filesystem::{self, Error, FileSystem};
 use crate::display::Writer;
-use crate::{console, heap, keyboard, mascot, memory, paging, pit, power, rtc, scheduler};
+use crate::{console, heap, keyboard, mascot, memory, paging, pci, pit, power, rtc, scheduler};
 
 const LINE_CAPACITY: usize = 128;
 const HISTORY_DEPTH: usize = 8;
@@ -24,6 +24,8 @@ kash commands (case-insensitive):
   VER, INFO, UPTIME     version, system summary, time since boot
   DATE (TIME)           read the CMOS real-time clock
   MEM, TASKS            physical memory and scheduler state
+  PCI, LSPCI            list discovered PCI devices
+  HARDWARE              hardware and PCI summary
   DIR (LS)              list KangaFS files
   TYPE (CAT) <file>     print a file
   WRITE <file> <text>   create or replace a file
@@ -273,6 +275,8 @@ impl Shell {
             "date" | "time" | "clock" | "rtc" => date(),
             "mem" => memory_report(),
             "tasks" => tasks(),
+            "pci" | "lspci" => pci_devices(),
+            "hardware" => hardware_report(),
             "cls" | "clear" => say!("{}", CLEAR_SCREEN),
             "echo" => sayln!("{}", rest),
             "history" => self.show_history(),
@@ -523,6 +527,35 @@ fn tasks() {
         }
     }
     sayln!("Worker ticks: a={}, b={}", worker_a, worker_b);
+}
+
+fn pci_devices() {
+    sayln!("PCI devices");
+    sayln!("BUS:DEV.FN  VENDOR:DEVICE  CLASS:SUBCLASS:PROGIF  DESCRIPTION");
+    let count = pci::scan(|device| {
+        sayln!(
+            "{:02x}:{:02x}.{}    {:04x}:{:04x}      {:02x}:{:02x}:{:02x}       {}",
+            device.bus,
+            device.device,
+            device.function,
+            device.vendor_id,
+            device.device_id,
+            device.class_code,
+            device.subclass,
+            device.programming_interface,
+            pci::class_name(device.class_code)
+        );
+    });
+    sayln!("{} PCI device function(s) found", count);
+}
+
+fn hardware_report() {
+    sayln!("KANGA HARDWARE");
+    sayln!("Architecture: x86_64");
+    sayln!("Boot protocol: Limine");
+    sayln!("Timer: PIT at 100 Hz");
+    memory_report();
+    pci_devices();
 }
 
 fn kanga() {
