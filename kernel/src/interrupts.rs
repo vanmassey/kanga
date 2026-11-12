@@ -246,7 +246,7 @@ pub fn initialise() {
     );
     crate::pit::initialise();
     let _ = writeln!(crate::serial::Writer, "Timer: PIT configured at 100 Hz");
-    // SAFETY: The IDT, TSS, PIC and PIT are ready; only IRQ0 is unmasked.
+    // SAFETY: The IDT, TSS, PIC and PIT are ready; IRQ0 and IRQ1 are unmasked.
     unsafe {
         asm!("sti", options(nomem, nostack));
     }
