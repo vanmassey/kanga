@@ -27,15 +27,15 @@ pub(crate) fn framebuffer_info() -> Option<FramebufferInfo> {
     let response = FRAMEBUFFER_REQUEST.get_response()?;
     let framebuffer = response.framebuffers().next()?;
     Some(FramebufferInfo {
-        address: framebuffer.address,
+        address: framebuffer.addr(),
         width: framebuffer.width(),
         height: framebuffer.height(),
         pitch: framebuffer.pitch(),
         bpp: framebuffer.bpp(),
         is_rgb: framebuffer.memory_model() == MemoryModel::RGB,
-        red_shift: framebuffer.red_shift,
-        green_shift: framebuffer.green_shift,
-        blue_shift: framebuffer.blue_shift,
+        red_shift: framebuffer.red_mask_shift(),
+        green_shift: framebuffer.green_mask_shift(),
+        blue_shift: framebuffer.blue_mask_shift(),
     })
 }
 
