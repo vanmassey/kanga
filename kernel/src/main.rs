@@ -2,6 +2,8 @@
 #![no_main]
 #![feature(abi_x86_interrupt)]
 
+extern crate alloc;
+
 use core::fmt::Write;
 use core::panic::PanicInfo;
 use limine::memory_map::EntryType;
@@ -25,6 +27,9 @@ mod power;
 mod rtc;
 mod scheduler;
 mod shell;
+
+#[global_allocator]
+static KERNEL_ALLOCATOR: heap::KernelAllocator = heap::KernelAllocator;
 
 static mut FRAME_BITMAP: [u64; memory::BITMAP_WORDS] = [u64::MAX; memory::BITMAP_WORDS];
 
@@ -356,6 +361,12 @@ fn report_memory_map() {
             serial::Writer,
             "Kernel heap allocation and reclamation test: {}",
             if heap_test { "passed" } else { "FAILED" }
+        );
+        let global_allocator_test = heap::global_allocator_self_test();
+        let _ = writeln!(
+            serial::Writer,
+            "Global allocator Vec integration test: {}",
+            if global_allocator_test { "passed" } else { "FAILED" }
         );
     }
 }
