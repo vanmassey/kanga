@@ -53,7 +53,7 @@ class TranscriptCheckerTests(unittest.TestCase):
     def test_output_must_follow_its_own_command(self):
         cases = [("one", ["alpha"]), ("two", ["beta"])]
         # "alpha" appears only after the second prompt, so case one must fail.
-        transcript = "Welcome to kash\r\nkash> one\r\nkash> two\r\nalpha\r\nbeta\r\nkash> "
+        transcript = "Welcome to Kanga DOS\r\nC:\\KANGA> one\r\nC:\\KANGA> two\r\nalpha\r\nbeta\r\nC:\\KANGA> "
         failures = shell_smoke.check_transcript(transcript, cases)
         self.assertEqual(len(failures), 1, failures)
         self.assertIn("'one'", failures[0])
@@ -61,7 +61,7 @@ class TranscriptCheckerTests(unittest.TestCase):
     def test_repeated_commands_are_matched_in_order(self):
         cases = [("type f", ["first"]), ("type f", ["second"])]
         transcript = (
-            "Welcome to kash\r\nkash> type f\r\nfirst\r\nkash> type f\r\nsecond\r\nkash> "
+            "Welcome to Kanga DOS\r\nC:\\KANGA> type f\r\nfirst\r\nC:\\KANGA> type f\r\nsecond\r\nC:\\KANGA> "
         )
         self.assertEqual(shell_smoke.check_transcript(transcript, cases), [])
 
