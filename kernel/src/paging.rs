@@ -133,9 +133,8 @@ impl PageTable {
 /// An independently allocated PML4 root with the kernel half shared from the
 /// boot address space. The lower 256 PML4 entries begin empty.
 ///
-/// This is an ownership and construction primitive only: it is not yet safe to
-/// activate an instance. User mappings, page-table ownership and CR3 switching
-/// are added by later virtual-memory work.
+/// User mappings can be built and inspected while the root remains inactive.
+/// CR3 switching and process-level ownership are added by later work.
 pub struct AddressSpace {
     root_frame: u64,
 }
@@ -196,7 +195,7 @@ impl AddressSpace {
     ) -> Result<(), MappingError> {
         let _guard = PageTableGuard::lock();
         validate_user_address(virtual_address)?;
-        if !flags.contains(PageFlags::USER) {
+        if !flags.contains(PageFlags::USER) || flags.contains(PageFlags::GLOBAL) {
             return Err(MappingError::InvalidFlags);
         }
         map_page_in_root(
@@ -214,6 +213,36 @@ impl AddressSpace {
             return Err(MappingError::NotInitialised);
         }
         translate_in_root(physical_to_table(self.root_frame)?, virtual_address)
+    }
+
+    /// Check that every paging level grants user-mode access to this page.
+    pub fn mapping_is_user_accessible(&self, virtual_address: u64) -> bool {
+        if validate_user_address(virtual_address).is_err() {
+            return false;
+        }
+        let Ok(mut table) = physical_to_table(self.root_frame) else {
+            return false;
+        };
+        let indices = page_indices(virtual_address);
+        for (level, index) in indices.iter().enumerate() {
+            // SAFETY: table points to a valid page-table frame owned/shared by this root.
+            let entry =
+                unsafe { core::ptr::read_volatile(core::ptr::addr_of!((*table).entries[*index])) };
+            if !entry.is_present() || !entry.is_user_accessible() {
+                return false;
+            }
+            if level == 3 {
+                return true;
+            }
+            if entry.is_huge() {
+                return false;
+            }
+            let Ok(next) = table_from_physical(entry.physical_address()) else {
+                return false;
+            };
+            table = next;
+        }
+        false
     }
 
     /// Remove a user mapping and return its physical data-frame address.
@@ -390,6 +419,7 @@ pub fn address_space_mapping_self_test() -> bool {
     }
 
     let isolated = space.translate(TEST_VIRTUAL_ADDRESS) == Ok(frame)
+        && space.mapping_is_user_accessible(TEST_VIRTUAL_ADDRESS)
         && matches!(translate(TEST_VIRTUAL_ADDRESS), Err(MappingError::NotMapped));
     let unmapped = space.unmap_page(TEST_VIRTUAL_ADDRESS) == Ok(frame);
     let absent_after_unmap = matches!(
