@@ -18,6 +18,7 @@ const NX: u64 = 1 << 63;
 
 static HHDM_OFFSET: AtomicU64 = AtomicU64::new(0);
 static INITIALISED: AtomicBool = AtomicBool::new(false);
+static NX_ENABLED: AtomicBool = AtomicBool::new(false);
 static PAGE_TABLE_LOCK: AtomicBool = AtomicBool::new(false);
 
 /// Hardware flags accepted when creating a 4 KiB page mapping.
@@ -141,6 +142,7 @@ pub enum MappingError {
     HugePageConflict,
     OutOfFrames,
     AddressOverflow,
+    NoExecuteUnavailable,
 }
 
 /// Initialise the manager with Limine's higher-half direct-map offset.
@@ -152,8 +154,72 @@ pub fn initialise(hhdm_offset: u64) -> bool {
         return false;
     }
     HHDM_OFFSET.store(hhdm_offset, Ordering::Relaxed);
+    NX_ENABLED.store(enable_nx_protection(), Ordering::Release);
     INITIALISED.store(true, Ordering::Release);
     true
+}
+
+/// Report whether hardware no-execute protection was successfully enabled.
+pub fn no_execute_enabled() -> bool {
+    NX_ENABLED.load(Ordering::Acquire)
+}
+
+/// Enable EFER.NXE only after confirming that the processor advertises NX.
+///
+/// Returning false leaves the paging manager usable for ordinary mappings;
+/// callers must not request NO_EXECUTE mappings in that configuration.
+fn enable_nx_protection() -> bool {
+    // SAFETY: CPUID is available in long mode and these leaves are queried only
+    // after checking the maximum supported extended leaf.
+    let maximum = unsafe { core::arch::x86_64::__cpuid(0x8000_0000) }.eax;
+    if maximum < 0x8000_0001 {
+        return false;
+    }
+    // SAFETY: The extended feature leaf is supported by the preceding check.
+    let features = unsafe { core::arch::x86_64::__cpuid(0x8000_0001) };
+    if features.edx & (1 << 20) == 0 {
+        return false;
+    }
+
+    const EFER_MSR: u32 = 0xC000_0080;
+    let low: u32;
+    let high: u32;
+    // SAFETY: NX support implies the architectural EFER MSR is available.
+    unsafe {
+        asm!(
+            "rdmsr",
+            in("ecx") EFER_MSR,
+            out("eax") low,
+            out("edx") high,
+            options(nomem, nostack)
+        );
+    }
+    let efer = u64::from(low) | (u64::from(high) << 32);
+    let enabled_efer = efer | (1 << 11);
+    // SAFETY: Preserve every existing EFER bit and set only the documented NXE bit.
+    unsafe {
+        asm!(
+            "wrmsr",
+            in("ecx") EFER_MSR,
+            in("eax") enabled_efer as u32,
+            in("edx") (enabled_efer >> 32) as u32,
+            options(nomem, nostack)
+        );
+    }
+
+    let verified_low: u32;
+    let verified_high: u32;
+    // SAFETY: Read back the same architectural EFER MSR to verify the change.
+    unsafe {
+        asm!(
+            "rdmsr",
+            in("ecx") EFER_MSR,
+            out("eax") verified_low,
+            out("edx") verified_high,
+            options(nomem, nostack)
+        );
+    }
+    (u64::from(verified_low) | (u64::from(verified_high) << 32)) & (1 << 11) != 0
 }
 
 /// Map one 4 KiB virtual page to a physical frame in the active address space.
@@ -169,6 +235,9 @@ pub fn map_page(
     }
     if flags.0 & !PageFlags::ALLOWED != 0 {
         return Err(MappingError::InvalidFlags);
+    }
+    if flags.contains(PageFlags::NO_EXECUTE) && !no_execute_enabled() {
+        return Err(MappingError::NoExecuteUnavailable);
     }
 
     let indices = page_indices(virtual_address);
