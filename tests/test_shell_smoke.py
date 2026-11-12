@@ -16,7 +16,7 @@ spec.loader.exec_module(shell_smoke)
 def build_transcript(cases=None, drop_output=None):
     """Synthesise what a healthy serial session looks like."""
     cases = shell_smoke.CASES if cases is None else cases
-    lines = ["Kernel idle loop reached", "", "Welcome to kash, the Kanga shell."]
+    lines = ["Kernel idle loop reached", "", "Welcome to Kanga DOS"]
     text = "\r\n".join(lines) + "\r\n" + shell_smoke.PROMPT
     for command, expected in cases:
         text += command + "\r\n"
@@ -32,7 +32,7 @@ class TranscriptCheckerTests(unittest.TestCase):
         self.assertEqual(shell_smoke.check_transcript(build_transcript()), [])
 
     def test_missing_banner_is_reported(self):
-        transcript = build_transcript().replace("Welcome to kash", "Welcome")
+        transcript = build_transcript().replace("Welcome to Kanga DOS", "Welcome")
         failures = shell_smoke.check_transcript(transcript)
         self.assertIn("shell banner not found", failures)
 
