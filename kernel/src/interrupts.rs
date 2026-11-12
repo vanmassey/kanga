@@ -15,7 +15,9 @@ const EMERGENCY_STACK_SIZE: usize = 16 * 1024;
 const PRIVILEGE_STACK_SIZE: usize = 16 * 1024;
 const GDT_CAPACITY: usize = 16;
 const GDT_TSS_TYPE: u64 = 0x89;
-const USER_DATA_DESCRIPTOR: u64 = 0x00CF_F200_0000_FFFF;
+// A long-mode data descriptor must keep L=0. Set the accessed bit up front;
+// the L bit is reserved for code descriptors and causes #GP when loaded into SS.
+const USER_DATA_DESCRIPTOR: u64 = 0x00CF_F300_0000_FFFF;
 const USER_CODE_DESCRIPTOR: u64 = 0x00AF_FA00_0000_FFFF;
 const IST_DOUBLE_FAULT: u8 = 1;
 const IST_NMI: u8 = 2;
