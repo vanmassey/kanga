@@ -1,4 +1,4 @@
-"""Host-side tests for the kash shell smoke-test transcript checker."""
+"""Host-side tests for the Kanga DOS shell smoke-test transcript checker."""
 
 from importlib import util
 from pathlib import Path
