@@ -24,7 +24,6 @@ pub struct Device {
     pub class_code: u8,
     pub subclass: u8,
     pub programming_interface: u8,
-    pub header_type: u8,
 }
 
 /// Enumerate every present PCI function and pass each descriptor to `visit`.
@@ -50,12 +49,7 @@ where
                 continue;
             }
 
-            if let Some(function) = read_function(
-                bus as u8,
-                device,
-                0,
-                function_zero_id,
-            ) {
+            if let Some(function) = read_function(bus as u8, device, 0, function_zero_id) {
                 visit(function);
                 found += 1;
             }
@@ -68,9 +62,7 @@ where
                     if id as u16 == u16::MAX {
                         continue;
                     }
-                    if let Some(function) =
-                        read_function(bus as u8, device, function_number, id)
-                    {
+                    if let Some(function) = read_function(bus as u8, device, function_number, id) {
                         visit(function);
                         found += 1;
                     }
@@ -100,7 +92,6 @@ fn read_function(bus: u8, device: u8, function: u8, id: u32) -> Option<Device> {
         class_code: (class >> 24) as u8,
         subclass: (class >> 16) as u8,
         programming_interface: (class >> 8) as u8,
-        header_type: (header >> 16) as u8 & 0x7F,
     })
 }
 
