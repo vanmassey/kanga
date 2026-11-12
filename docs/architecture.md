@@ -16,6 +16,8 @@ The physical frame allocator uses a static bitmap for page-aligned 4 KiB frames 
 
 The virtual-memory subsystem uses the active CR3 root and a four-level x86-64 page-table walk. It provides PTE and page-table types, creates missing intermediate tables using the physical frame allocator, maps and unmaps 4 KiB pages, translates virtual addresses (including existing huge-page mappings), and invalidates the TLB after changes. A boot-time self-test exercises a temporary mapping. The page-table lock also disables local maskable interrupts while held; NMI handlers must not acquire it. Independent address spaces and safe page-table reclamation are not implemented. See [memory.md](memory.md) for details and limitations.
 
+PCI discovery currently uses x86 PCI Configuration Mechanism #1 through the CF8/CFC I/O ports. The read-only enumerator checks all 256 bus numbers, scans device functions according to the multifunction header bit, and reports vendor, device, class, subclass and programming-interface identifiers. Boot diagnostics record the number of discovered functions; the `PCI`/`LSPCI` Kash commands list them. This is discovery only: Kanga does not yet probe or assign BARs, configure devices, provide DMA support, or bind device drivers. The scan runs in ordinary kernel context and is not called from interrupt handlers.
+
 KangaFS is a fixed-capacity in-memory filesystem with a root directory, sixteen file slots, filenames up to 24 characters and file contents up to 256 bytes. Its contents are volatile and are lost when the kernel stops or reboots.
 
 ## Planned components
@@ -25,7 +27,7 @@ KangaFS is a fixed-capacity in-memory filesystem with a root directory, sixteen 
 | Architecture | CPU setup, descriptor tables, interrupt controllers and low-level I/O |
 | Memory | Independent virtual address spaces, frame reclamation and a kernel heap |
 | Interrupts | General IRQ dispatch, spurious IRQ handling and APIC/IOAPIC support |
-| Drivers | PCI discovery and device drivers |
+| Drivers | Initial PCI configuration-space enumeration; device model and device drivers |
 | Tasks | Kernel threads, processes and scheduling (initial pre-emptive kernel-thread stage implemented) |
 | VFS | Filesystem abstraction, block devices, partitions and persistent filesystems |
 | Networking | Link, network and transport protocols |

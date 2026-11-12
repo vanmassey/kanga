@@ -65,6 +65,8 @@ jobs:
           grep -F "Interrupts: PIC remapped; timer IRQ0 and keyboard IRQ1 enabled, other legacy IRQs masked" build/serial.log
           grep -F "Timer: PIT configured at 100 Hz" build/serial.log
           grep -F "Scheduler: pre-emptive round-robin enabled (3 kernel threads)" build/serial.log
+          grep -F "PCI: configuration mechanism #1 scan complete" build/serial.log
+          grep -E "PCI: [1-9][0-9]* device function\(s\) discovered" build/serial.log
           grep -F "Memory map entries:" build/serial.log
           grep -F "Physical bitmap allocator: " build/serial.log
           grep -F "Virtual memory manager: x86-64 four-level page tables ready" build/serial.log
