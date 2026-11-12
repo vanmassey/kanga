@@ -1,6 +1,6 @@
 //! Minimal RGB framebuffer text console for the graphical QEMU display.
 //!
-//! The console occupies the lower two-fifths of the display so the Kanga
+//! The console occupies the lower third of the display so the Kanga
 //! mascot can remain visible above it. It uses fixed 8x16 character cells,
 //! a compact built-in 5x7 ASCII font, and no heap allocation.
 
@@ -155,11 +155,7 @@ impl Display {
         if left + CELL_WIDTH > self.width || top + CELL_HEIGHT > self.height {
             return;
         }
-        let character = if byte.is_ascii_lowercase() {
-            byte.to_ascii_uppercase()
-        } else {
-            byte
-        };
+        let character = byte;
         for y in 0..CELL_HEIGHT {
             let bits = glyph_row(character, y / 2);
             for x in 0..CELL_WIDTH {
@@ -299,6 +295,32 @@ fn ansi_colour(index: usize) -> u32 {
 // corresponding uppercase glyph, keeping the kernel independent of assets.
 fn glyph_row(byte: u8, row: usize) -> u8 {
     let glyph: [u8; 7] = match byte {
+        b'a' => [0,0,14,1,15,17,15],
+        b'b' => [16,16,30,17,17,17,30],
+        b'c' => [0,0,14,17,16,17,14],
+        b'd' => [1,1,15,17,17,17,15],
+        b'e' => [0,0,14,17,31,16,14],
+        b'f' => [6,9,8,28,8,8,8],
+        b'g' => [0,15,17,17,15,1,14],
+        b'h' => [16,16,30,17,17,17,17],
+        b'i' => [4,0,12,4,4,4,14],
+        b'j' => [2,0,6,2,2,18,12],
+        b'k' => [16,16,18,20,24,20,18],
+        b'l' => [12,4,4,4,4,4,14],
+        b'm' => [0,0,26,21,21,21,21],
+        b'n' => [0,0,30,17,17,17,17],
+        b'o' => [0,0,14,17,17,17,14],
+        b'p' => [0,0,30,17,17,30,16],
+        b'q' => [0,0,15,17,17,15,1],
+        b'r' => [0,0,22,25,16,16,16],
+        b's' => [0,0,15,16,14,1,30],
+        b't' => [8,8,28,8,8,9,6],
+        b'u' => [0,0,17,17,17,19,13],
+        b'v' => [0,0,17,17,17,10,4],
+        b'w' => [0,0,17,17,21,21,10],
+        b'x' => [0,0,17,10,4,10,17],
+        b'y' => [0,0,17,17,15,1,14],
+        b'z' => [0,0,31,2,4,8,31],
         b'A' => [14,17,17,31,17,17,17],
         b'B' => [30,17,17,30,17,17,30],
         b'C' => [14,17,16,16,16,17,14],
