@@ -1,4 +1,4 @@
-//! kash: the Kanga shell, rendered in the framebuffer and mirrored to COM1.
+//! Kanga DOS shell, rendered in the framebuffer and mirrored to COM1.
 //!
 //! The shell runs on the bootstrap thread from the idle loop. It accepts
 //! translated PS/2 keyboard input (and optional COM1 input), supports line
@@ -9,7 +9,7 @@ use core::fmt::Write;
 
 use crate::filesystem::{self, Error, FileSystem};
 use crate::display::Writer;
-use crate::{console, heap, keyboard, mascot, memory, paging, pci, pit, power, rtc, scheduler};
+use crate::{console, heap, keyboard, memory, paging, pci, pit, power, rtc, scheduler};
 
 const LINE_CAPACITY: usize = 128;
 const HISTORY_DEPTH: usize = 8;
@@ -37,7 +37,7 @@ KANGA DOS commands (case-insensitive):
   ECHO <text>           print text
   HISTORY               recent commands (Up and Down arrows recall them)
   CLS                   clear the terminal
-  KANGA                 redraw the framebuffer mascot
+  KANGA                 show Kan the Kangaroo
   SELFTEST              rerun the paging and heap self-tests
   REBOOT, HALT, POWEROFF
 Line editing: Backspace, Ctrl-U erase line, Ctrl-C cancel, Ctrl-L redraw.
