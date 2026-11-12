@@ -16,6 +16,7 @@ mod interrupts;
 mod keyboard;
 mod memory;
 mod mascot;
+mod pci;
 /// Public x86-64 virtual-memory interface for the kernel.
 pub mod paging;
 mod pic;
@@ -96,6 +97,9 @@ pub extern "C" fn kanga_entry() -> ! {
         }
     }
     report_memory_map();
+    let pci_devices = pci::scan(|_| {});
+    let _ = writeln!(serial::Writer, "PCI: configuration mechanism #1 scan complete");
+    let _ = writeln!(serial::Writer, "PCI: {} device function(s) discovered", pci_devices);
     if scheduler::initialise() {
         let _ = writeln!(
             serial::Writer,
