@@ -7,13 +7,6 @@
 use core::fmt;
 use core::ptr;
 
-use limine::framebuffer::MemoryModel;
-use limine::request::FramebufferRequest;
-
-#[used]
-#[link_section = ".limine_requests"]
-static FRAMEBUFFER_REQUEST: FramebufferRequest = FramebufferRequest::new();
-
 const CELL_WIDTH: usize = 8;
 const CELL_HEIGHT: usize = 16;
 const CONSOLE_TOP_NUMERATOR: usize = 2;
@@ -45,20 +38,16 @@ static mut DISPLAY: Option<Display> = None;
 /// Initialise the text area below the mascot. Returns false if no supported
 /// 32-bit RGB framebuffer was supplied by Limine.
 pub fn initialise() -> bool {
-    // SAFETY: Limine owns the response and framebuffer mapping for the kernel lifetime.
-    let Some(response) = (unsafe { FRAMEBUFFER_REQUEST.get_response() }) else {
+    let Some(framebuffer) = crate::mascot::framebuffer_info() else {
         return false;
     };
-    let Some(framebuffer) = response.framebuffers().next() else {
-        return false;
-    };
-    if framebuffer.bpp() != 32 || framebuffer.memory_model() != MemoryModel::RGB {
+    if framebuffer.bpp != 32 || !framebuffer.is_rgb {
         return false;
     }
 
-    let width = framebuffer.width().min(usize::MAX as u64) as usize;
-    let height = framebuffer.height().min(usize::MAX as u64) as usize;
-    let pitch = framebuffer.pitch() as usize;
+    let width = framebuffer.width.min(usize::MAX as u64) as usize;
+    let height = framebuffer.height.min(usize::MAX as u64) as usize;
+    let pitch = framebuffer.pitch as usize;
     let top = (height * CONSOLE_TOP_NUMERATOR / CONSOLE_TOP_DENOMINATOR / CELL_HEIGHT)
         * CELL_HEIGHT;
     if width < CELL_WIDTH || height.saturating_sub(top) < CELL_HEIGHT * 3
@@ -68,7 +57,7 @@ pub fn initialise() -> bool {
     }
 
     let display = Display {
-        address: framebuffer.addr(),
+        address: framebuffer.address,
         width,
         height,
         pitch,
@@ -77,9 +66,9 @@ pub fn initialise() -> bool {
         rows: (height - top) / CELL_HEIGHT,
         column: 0,
         row: 0,
-        red_shift: framebuffer.red_mask_shift(),
-        green_shift: framebuffer.green_mask_shift(),
-        blue_shift: framebuffer.blue_mask_shift(),
+        red_shift: framebuffer.red_shift,
+        green_shift: framebuffer.green_shift,
+        blue_shift: framebuffer.blue_shift,
         foreground: DEFAULT_FG,
         background: DEFAULT_BG,
         escape: 0,
