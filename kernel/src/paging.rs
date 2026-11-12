@@ -452,12 +452,12 @@ pub fn no_execute_enabled() -> bool {
 fn enable_nx_protection() -> bool {
     // SAFETY: CPUID is available in long mode and these leaves are queried only
     // after checking the maximum supported extended leaf.
-    let maximum = unsafe { core::arch::x86_64::__cpuid(0x8000_0000) }.eax;
+    let maximum = core::arch::x86_64::__cpuid(0x8000_0000).eax;
     if maximum < 0x8000_0001 {
         return false;
     }
     // SAFETY: The extended feature leaf is supported by the preceding check.
-    let features = unsafe { core::arch::x86_64::__cpuid(0x8000_0001) };
+    let features = core::arch::x86_64::__cpuid(0x8000_0001);
     if features.edx & (1 << 20) == 0 {
         return false;
     }
@@ -518,7 +518,7 @@ pub fn map_page(
 pub fn unmap_page(virtual_address: u64) -> Result<u64, MappingError> {
     let _guard = PageTableGuard::lock();
     let root = active_root()?;
-    unmap_page_in_root(root, virtual_address)
+    unmap_page_in_root(virtual_address, root)
 }
 
 /// Exercise creation, translation and removal of one temporary mapping.
