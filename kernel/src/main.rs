@@ -65,11 +65,7 @@ pub extern "C" fn kanga_entry() -> ! {
     let _ = writeln!(serial::Writer, "Architecture: x86_64");
     let _ = writeln!(serial::Writer, "Boot protocol: Limine");
 
-    if mascot::draw() {
-        let _ = writeln!(serial::Writer, "Framebuffer mascot: Kanga rendered in upper display region");
-    } else {
-        let _ = writeln!(serial::Writer, "Framebuffer mascot: unavailable (no compatible RGB 32-bit framebuffer)");
-    }
+    let _ = writeln!(serial::Writer, "Kan the Kangaroo: DOS shell mascot enabled");
 
     if display::initialise() {
         let _ = writeln!(display::Writer, "Kanga framebuffer console ready");
