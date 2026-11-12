@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Boot Kanga under QEMU and drive the kash serial shell end to end.
+"""Boot Kanga under QEMU and drive the DOS-style serial shell end to end.
 
 Usage: python3 scripts/shell-smoke.py [--iso build/kanga.iso] [--verbose]
 
