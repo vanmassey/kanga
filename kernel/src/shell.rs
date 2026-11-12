@@ -15,11 +15,11 @@ const LINE_CAPACITY: usize = 128;
 const HISTORY_DEPTH: usize = 8;
 const MAX_COMMAND_LENGTH: usize = 16;
 const TASK_SCAN_LIMIT: usize = 8;
-const PROMPT: &str = "kash> ";
+const PROMPT: &str = "C:\\KANGA> ";
 const CLEAR_SCREEN: &str = "\x1b[2J\x1b[H";
 
 const HELP_TEXT: &str = "\
-kash commands (case-insensitive):
+KANGA DOS commands (case-insensitive):
   HELP                  show this list
   VER, INFO, UPTIME     version, system summary, time since boot
   DATE (TIME)           read the CMOS real-time clock
@@ -97,8 +97,14 @@ impl Shell {
 
     /// Print the banner and first prompt.
     pub fn start(&mut self) {
+        say!("{}{}", CLEAR_SCREEN, "\x1b[47m\x1b[34m KANGA DOS 1.0                                      KAN THE KANGAROO \x1b[0m\n");
         sayln!();
-        sayln!("Welcome to kash, the Kanga shell. Type HELP for commands.");
+        sayln!("KANGA PERSONAL COMPUTER  (C) 2026 KANGA SYSTEMS");
+        sayln!();
+        kan_art();
+        sayln!();
+        sayln!("Welcome to Kanga DOS. Type HELP for a list of commands.");
+        sayln!("All systems ready.");
         prompt();
     }
 
@@ -559,11 +565,20 @@ fn hardware_report() {
 }
 
 fn kanga() {
-    if mascot::draw() {
-        sayln!("Kanga hops onto the framebuffer.");
-    } else {
-        sayln!("kanga: no compatible RGB framebuffer");
-    }
+    kan_art();
+    sayln!("Kan the Kangaroo is ready to help.");
+}
+
+fn kan_art() {
+    sayln!("       /\\   /\\");
+    sayln!("      /  \\_/  \\");
+    sayln!("     |  o   o  |");
+    sayln!("     |    ^    |");
+    sayln!("     |  \\___/  |");
+    sayln!("      \\  ___  /");
+    sayln!("       /|   |\\");
+    sayln!("      /_|___|_\\");
+    sayln!("        KAN");
 }
 
 fn selftest() {
