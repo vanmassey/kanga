@@ -15,10 +15,10 @@ Kanga currently provides:
 - an x86-64 four-level virtual memory manager using the active CR3 page-table hierarchy;
 - page-table entry and page-table types, 4 KiB mapping and unmapping, virtual-to-physical translation, and TLB invalidation;
 - boot-time virtual mapping, translation and unmapping validation;
-- a 32-bit RGB framebuffer console with an 8x16 VGA-compatible font;
+- a 32-bit RGB framebuffer text console below the boot mascot, using 8x16 cells and a compact built-in ASCII font;
 - a black console background, light-grey default text, and ANSI SGR standard/bright 16-colour foreground/background rendering;
-- line wrapping, backspace, clear-screen, a prompt cursor, and 128 lines of scrollback;
-- interrupt-driven PS/2 keyboard input through IRQ1;
+- line wrapping, backspace, clear-screen and framebuffer scrolling;
+- interrupt-driven PS/2 keyboard input through IRQ1, including Shift, Caps Lock, Backspace and arrow keys;
 - a 256-entry IDT with fatal CPU exception handlers for vectors 0–31;
 - a remapped legacy 8259 PIC, with keyboard IRQ1 and PIT timer IRQ0 enabled;
 - a 100 Hz PIT tick counter, uptime reporting and a CMOS real-time clock reader; and
@@ -26,7 +26,7 @@ Kanga currently provides:
 
 The shell includes `HELP`, `DIR`, `CLS`, `VER`, `ECHO`, `INFO`, `MEM`, `TIME`, `DATE` (also `CLOCK`/`RTC`), `UPTIME`, `ABOUT`, `CAL`, `HALT`, `FSINFO`, `WRITE`, `TYPE`, `COPY` and `DEL`. Commands are case-insensitive. KangaFS contents exist only in RAM and are lost on reboot.
 
-The console retains up to 128 logical lines. Use **Up Arrow** to browse older output and **Down Arrow** to return towards the live prompt. Typing, Backspace or Enter returns to the live prompt. The renderer currently supports ANSI SGR palette colours only; cursor movement, terminal erase commands and 24-bit true colour are not implemented.
+The shell retains the eight most recent commands. Use **Up Arrow** and **Down Arrow** to browse command history. The framebuffer renderer supports ASCII text, line wrapping, scrolling, backspace, clear-screen and basic ANSI SGR palette colours. It does not yet provide output scrollback, arbitrary cursor positioning or 24-bit true colour.
 
 ## Build requirements
 
@@ -58,7 +58,7 @@ Run it in QEMU:
 make run
 ~~~
 
-This opens a QEMU window showing Kanga's framebuffer text console. Serial diagnostics and shell output remain connected to the terminal.
+This opens a QEMU window showing the Kanga mascot above the Kash framebuffer shell. Type directly into the QEMU window. Shell output is also mirrored to the host terminal over COM1 for diagnostics.
 
 The ISO build downloads a pinned Limine 12.9.6 binary release and verifies its SHA-256 checksum before use.
 
