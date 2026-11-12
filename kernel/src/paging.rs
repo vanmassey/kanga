@@ -129,6 +129,71 @@ impl PageTable {
     }
 }
 
+
+/// An independently allocated PML4 root with the kernel half shared from the
+/// boot address space. The lower 256 PML4 entries begin empty.
+///
+/// This is an ownership and construction primitive only: it is not yet safe to
+/// activate an instance. User mappings, page-table ownership and CR3 switching
+/// are added by later virtual-memory work.
+pub struct AddressSpace {
+    root_frame: u64,
+}
+
+impl AddressSpace {
+    /// Physical address of this address space's PML4 root.
+    pub const fn root_physical_address(&self) -> u64 {
+        self.root_frame
+    }
+
+    /// Count present entries in the shared higher-half kernel region.
+    pub fn kernel_mapping_count(&self) -> usize {
+        let Ok(root) = physical_to_table(self.root_frame) else {
+            return 0;
+        };
+        (256..ENTRIES_PER_TABLE)
+            .filter(|index| unsafe {
+                core::ptr::read_volatile(core::ptr::addr_of!((*root).entries[*index]))
+                    .is_present()
+            })
+            .count()
+    }
+
+    /// Confirm that every kernel-half PML4 entry still matches the boot root.
+    pub fn kernel_mappings_match_active(&self) -> bool {
+        let Ok(root) = physical_to_table(self.root_frame) else {
+            return false;
+        };
+        let Ok(active) = active_root() else {
+            return false;
+        };
+        (256..ENTRIES_PER_TABLE).all(|index| unsafe {
+            core::ptr::read_volatile(core::ptr::addr_of!((*root).entries[index]))
+                == core::ptr::read_volatile(core::ptr::addr_of!((*active).entries[index]))
+        })
+    }
+
+    /// Confirm that the user half contains no mappings.
+    pub fn user_half_is_empty(&self) -> bool {
+        let Ok(root) = physical_to_table(self.root_frame) else {
+            return false;
+        };
+        (0..256).all(|index| unsafe {
+            !core::ptr::read_volatile(core::ptr::addr_of!((*root).entries[index])).is_present()
+        })
+    }
+
+    /// Release this root. This is safe because this initial abstraction never
+    /// installs user mappings or owns any lower-level page-table frames.
+    pub fn destroy(self) -> bool {
+        memory::with_global_allocator(|allocator| {
+            // SAFETY: This object uniquely owns the allocated root frame.
+            unsafe { allocator.deallocate_frame(self.root_frame) }
+        })
+        .unwrap_or(false)
+    }
+}
+
 /// Errors returned by virtual-memory operations.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MappingError {
@@ -157,6 +222,66 @@ pub fn initialise(hhdm_offset: u64) -> bool {
     NX_ENABLED.store(enable_nx_protection(), Ordering::Release);
     INITIALISED.store(true, Ordering::Release);
     true
+}
+
+
+/// Create an inactive address space with a private PML4 and shared kernel half.
+///
+/// Entries 256–511 are copied from the active boot root. Entries 0–255 remain
+/// zero, so no bootloader identity or user mappings are inherited.
+pub fn create_address_space() -> Result<AddressSpace, MappingError> {
+    let _guard = PageTableGuard::lock();
+    if !INITIALISED.load(Ordering::Acquire) {
+        return Err(MappingError::NotInitialised);
+    }
+
+    let active = active_root()?;
+    let frame = allocate_table_frame()?;
+    let Ok(root) = physical_to_table(frame) else {
+        let _ = memory::with_global_allocator(|allocator| {
+            // SAFETY: The newly allocated root frame has not been published.
+            unsafe { allocator.deallocate_frame(frame) }
+        });
+        return Err(MappingError::AddressOverflow);
+    };
+
+    // SAFETY: The frame is newly allocated, HHDM-mapped and exclusively owned.
+    unsafe {
+        core::ptr::write_bytes(root.cast::<u8>(), 0, PAGE_SIZE as usize);
+        for index in 256..ENTRIES_PER_TABLE {
+            let entry = core::ptr::read_volatile(core::ptr::addr_of!((*active).entries[index]));
+            core::ptr::write_volatile(core::ptr::addr_of_mut!((*root).entries[index]), entry);
+        }
+    }
+
+    Ok(AddressSpace { root_frame: frame })
+}
+
+/// Verify that two independently allocated roots share only the kernel half.
+pub fn address_space_self_test() -> bool {
+    let first = match create_address_space() {
+        Ok(space) => space,
+        Err(_) => return false,
+    };
+    let second = match create_address_space() {
+        Ok(space) => space,
+        Err(_) => {
+            let _ = first.destroy();
+            return false;
+        }
+    };
+
+    let passed = first.root_physical_address() != second.root_physical_address()
+        && first.kernel_mapping_count() > 0
+        && first.kernel_mapping_count() == second.kernel_mapping_count()
+        && first.kernel_mappings_match_active()
+        && second.kernel_mappings_match_active()
+        && first.user_half_is_empty()
+        && second.user_half_is_empty();
+
+    let first_released = first.destroy();
+    let second_released = second.destroy();
+    passed && first_released && second_released
 }
 
 /// Report whether hardware no-execute protection was successfully enabled.
