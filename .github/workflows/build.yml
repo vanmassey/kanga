@@ -87,7 +87,7 @@ jobs:
           grep -F "Kanga framebuffer console ready" build/serial.log
           grep -F "KANGA DOS 1.0" build/serial.log
           grep -F "Welcome to Kanga DOS" build/serial.log
-          grep -F 'C:\\KANGA> ' build/serial.log
+          grep -F 'C:\KANGA> ' build/serial.log
           grep -F "KAN" build/serial.log
       - name: Upload bootable ISO and serial log
         if: always()
