@@ -1,8 +1,7 @@
-//! Minimal RGB framebuffer text console for the graphical QEMU display.
+//! Full-screen RGB framebuffer text console with a classic DOS appearance.
 //!
 //! The console uses the full framebuffer in a classic DOS-style blue text mode.
-//! It uses fixed 8x16 character cells,
-//! a compact built-in 5x7 ASCII font, and no heap allocation.
+//! It uses fixed 8x16 character cells, a compact built-in 5x7 ASCII font, and no heap allocation.
 
 use core::fmt;
 use core::ptr;
@@ -349,6 +348,7 @@ fn glyph_row(byte: u8, row: usize) -> u8 {
         b'?' => [14,17,1,2,4,0,4],
         b'-' => [0,0,0,31,0,0,0],
         b'_' => [0,0,0,0,0,0,31],
+        b'^' => [4,10,17,0,0,0,0],
         b'+' => [0,4,4,31,4,4,0],
         b'=' => [0,31,0,31,0,0,0],
         b'/' => [1,2,2,4,8,8,16],
