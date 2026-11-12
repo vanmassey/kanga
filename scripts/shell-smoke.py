@@ -19,7 +19,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PROMPT = "kash> "
+PROMPT = "C:\\KANGA> "
 BOOT_TIMEOUT = 45.0
 COMMAND_TIMEOUT = 10.0
 
@@ -49,7 +49,7 @@ CASES = [
 def check_transcript(transcript: str, cases=CASES) -> list[str]:
     """Return a list of failure descriptions; empty means every case passed."""
     failures: list[str] = []
-    if "Welcome to kash" not in transcript:
+    if "Welcome to Kanga DOS" not in transcript:
         failures.append("shell banner not found")
     cursor = 0
     for command, expected in cases:
@@ -133,7 +133,7 @@ def run(iso: Path, verbose: bool) -> int:
     session = Session(iso)
     try:
         if not session.wait_for_prompts(1, BOOT_TIMEOUT):
-            print("FAIL  kash prompt did not appear during boot", file=sys.stderr)
+            print("FAIL  DOS shell prompt did not appear during boot", file=sys.stderr)
             print(session.transcript[-2000:], file=sys.stderr)
             return 1
         prompts = 1
@@ -155,7 +155,7 @@ def run(iso: Path, verbose: bool) -> int:
     if failures:
         print(f"{len(failures)} shell check(s) failed")
         return 1
-    print(f"all {len(CASES)} kash commands behaved as expected")
+    print(f"all {len(CASES)} DOS shell commands behaved as expected")
     return 0
 
 
