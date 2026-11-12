@@ -256,6 +256,10 @@ pub fn initialise() {
     );
 }
 
+extern "x86-interrupt" fn keyboard_interrupt(_frame: InterruptStackFrame) {
+    crate::keyboard::handle_interrupt();
+}
+
 unsafe fn set_gate(idt: *mut IdtEntry, vector: usize, handler: usize, selector: u16, ist: u8) {
     // SAFETY: The caller supplies a valid vector within the 256-entry IDT.
     unsafe {
