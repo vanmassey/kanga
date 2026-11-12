@@ -161,16 +161,16 @@ pub fn draw() -> bool {
     }
 
     let mut canvas = Canvas {
-        address: framebuffer.addr(),
+        address: framebuffer.address,
         width,
         height,
         pitch,
         scale,
         left: (width - DESIGN_W * scale) / 2,
         top: (mascot_region_height - DESIGN_H * scale) / 2,
-        red_shift: framebuffer.red_mask_shift(),
-        green_shift: framebuffer.green_mask_shift(),
-        blue_shift: framebuffer.blue_mask_shift(),
+        red_shift: framebuffer.red_shift,
+        green_shift: framebuffer.green_shift,
+        blue_shift: framebuffer.blue_shift,
     };
 
     const BLACK: u32 = 0x101018;
