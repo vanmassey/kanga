@@ -16,8 +16,8 @@ static FRAMEBUFFER_REQUEST: FramebufferRequest = FramebufferRequest::new();
 
 const CELL_WIDTH: usize = 8;
 const CELL_HEIGHT: usize = 16;
-const CONSOLE_TOP_NUMERATOR: usize = 3;
-const CONSOLE_TOP_DENOMINATOR: usize = 5;
+const CONSOLE_TOP_NUMERATOR: usize = 2;
+const CONSOLE_TOP_DENOMINATOR: usize = 3;
 const DEFAULT_FG: u32 = 0xD8DEE9;
 const DEFAULT_BG: u32 = 0x101018;
 
