@@ -355,6 +355,12 @@ fn report_memory_map() {
         "Address-space root creation and kernel mapping isolation test: {}",
         if address_spaces_ok { "passed" } else { "FAILED" }
     );
+    let user_mapping_ok = paging::address_space_mapping_self_test();
+    let _ = writeln!(
+        serial::Writer,
+        "Inactive address-space user mapping and translation test: {}",
+        if user_mapping_ok { "passed" } else { "FAILED" }
+    );
     let heap_ok = heap::initialise();
     let _ = writeln!(
         serial::Writer,
