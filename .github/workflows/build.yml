@@ -32,7 +32,7 @@ jobs:
           qemu-system-x86_64 \
             -machine pc -cpu max -m 256M -boot d -cdrom build/kanga.iso \
             -serial file:build/serial.log \
-            -display none -no-reboot -no-shutdown &
+            -vga std -display vnc=127.0.0.1:0 -no-reboot -no-shutdown &
           qemu_pid=$!
           cleanup() {
             status=$?
@@ -85,6 +85,10 @@ jobs:
           grep -F "Kernel initialisation complete" build/serial.log
           ! grep -F "Kanga> " build/serial.log
           grep -F "Kanga framebuffer console ready" build/serial.log
+          grep -F "KANGA DOS 1.0" build/serial.log
+          grep -F "Welcome to Kanga DOS" build/serial.log
+          grep -F 'C:\\KANGA> ' build/serial.log
+          grep -F "KAN" build/serial.log
       - name: Upload bootable ISO and serial log
         if: always()
         uses: actions/upload-artifact@v4
