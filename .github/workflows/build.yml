@@ -32,7 +32,7 @@ jobs:
           qemu-system-x86_64 \
             -machine pc -cpu max -m 256M -boot d -cdrom build/kanga.iso \
             -serial file:build/serial.log \
-            -vga std -display vnc=127.0.0.1:0 -no-reboot -no-shutdown &
+            -display none -no-reboot -no-shutdown &
           qemu_pid=$!
           cleanup() {
             status=$?
