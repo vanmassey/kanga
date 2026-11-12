@@ -31,6 +31,7 @@ static RING3_TEST_PASSED: AtomicBool = AtomicBool::new(false);
 static RING3_TEST_FAILED: AtomicBool = AtomicBool::new(false);
 static RING3_TEST_INTERRUPTS: AtomicU64 = AtomicU64::new(0);
 static RING3_TEST_KERNEL_CS: AtomicUsize = AtomicUsize::new(0);
+static RING3_TEST_KERNEL_SS: AtomicUsize = AtomicUsize::new(0);
 
 #[no_mangle]
 static mut KANGA_RING3_USER_RIP: u64 = 0;
@@ -226,6 +227,7 @@ extern "C" {
     pub(crate) fn timer_interrupt_entry();
     fn kanga_enter_ring3_test();
     fn kanga_ring3_test_return();
+    static kanga_ring3_kernel_rsp: u64;
     static kanga_ring3_user_code_start: u8;
     static kanga_ring3_user_code_end: u8;
 }
@@ -511,8 +513,18 @@ pub fn ring3_timer_self_test(hhdm_offset: u64) -> bool {
         );
     }
 
+    let kernel_stack_selector: u16;
+    unsafe {
+        asm!(
+            "mov {0:x}, ss",
+            out(reg) kernel_stack_selector,
+            options(nomem, nostack, preserves_flags)
+        );
+    }
+
     RING3_TEST_DATA_POINTER.store(data_pointer as usize, Ordering::Release);
     RING3_TEST_KERNEL_CS.store(usize::from(kernel_code_selector), Ordering::Release);
+    RING3_TEST_KERNEL_SS.store(usize::from(kernel_stack_selector), Ordering::Release);
     RING3_TEST_INTERRUPTS.store(0, Ordering::Relaxed);
     RING3_TEST_PASSED.store(false, Ordering::Relaxed);
     RING3_TEST_FAILED.store(false, Ordering::Relaxed);
@@ -600,8 +612,14 @@ fn handle_ring3_test_interrupt(frame: *mut RegisterFrame) {
 fn return_to_kernel_test_context(frame: &mut RegisterFrame) {
     frame.instruction_pointer = kanga_ring3_test_return as *const () as usize as u64;
     frame.code_segment = RING3_TEST_KERNEL_CS.load(Ordering::Acquire) as u64;
-    // Keep interrupts disabled until the assembly trampoline restores the
-    // original kernel stack. The caller restores its original IF afterwards.
+    frame.stack_segment = RING3_TEST_KERNEL_SS.load(Ordering::Acquire) as u64;
+    // IRETQ always consumes the five-slot 64-bit frame. Returning to ring 0
+    // therefore needs the saved kernel SS:RSP as well as the kernel CS:RIP.
+    // The assembly trampoline restores this same stack before popping the
+    // callee-saved registers. Keep interrupts disabled until that is complete.
+    frame.stack_pointer = unsafe {
+        ptr::read_volatile(core::ptr::addr_of!(kanga_ring3_kernel_rsp))
+    };
     frame.cpu_flags = (frame.cpu_flags | 2) & !(1 << 9);
 }
 
