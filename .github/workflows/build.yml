@@ -61,9 +61,8 @@ jobs:
           grep -F "Kanga kernel entry reached" build/serial.log
           grep -F "Interrupts: 256-entry IDT installed" build/serial.log
           grep -F "Interrupts: CPU exception gates 0-31 configured" build/serial.log
-          grep -F "Interrupts: PIC remapped; timer IRQ0 enabled, other legacy IRQs masked" build/serial.log
+          grep -F "Interrupts: PIC remapped; timer IRQ0 and keyboard IRQ1 enabled, other legacy IRQs masked" build/serial.log
           grep -F "Timer: PIT configured at 100 Hz" build/serial.log
-          ! grep -F "keyboard IRQ1 enabled" build/serial.log
           grep -F "Scheduler: pre-emptive round-robin enabled (3 kernel threads)" build/serial.log
           grep -F "Memory map entries:" build/serial.log
           grep -F "Physical bitmap allocator: " build/serial.log
@@ -82,7 +81,7 @@ jobs:
           grep -F "Kernel heap allocation and reclamation test: passed" build/serial.log
           grep -F "Kernel initialisation complete" build/serial.log
           ! grep -F "Kanga> " build/serial.log
-          ! grep -F "Display: framebuffer text console" build/serial.log
+          grep -F "Kanga framebuffer console ready" build/serial.log
       - name: Upload bootable ISO and serial log
         if: always()
         uses: actions/upload-artifact@v4
