@@ -33,7 +33,7 @@ struct Display {
 
 static mut DISPLAY: Option<Display> = None;
 
-/// Initialise the text area below the mascot. Returns false if no supported
+/// Initialise the full-screen DOS text console. Returns false if no supported
 /// 32-bit RGB framebuffer was supplied by Limine.
 pub fn initialise() -> bool {
     let Some(framebuffer) = crate::mascot::framebuffer_info() else {
