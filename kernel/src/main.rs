@@ -349,6 +349,12 @@ fn report_memory_map() {
         "Virtual mapping, translation and unmapping test: {}",
         if paging_ok { "passed" } else { "FAILED" }
     );
+    let address_spaces_ok = paging::address_space_self_test();
+    let _ = writeln!(
+        serial::Writer,
+        "Address-space root creation and kernel mapping isolation test: {}",
+        if address_spaces_ok { "passed" } else { "FAILED" }
+    );
     let heap_ok = heap::initialise();
     let _ = writeln!(
         serial::Writer,
