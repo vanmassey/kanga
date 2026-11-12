@@ -6,6 +6,8 @@ All notable Kanga changes are recorded here.
 
 ### Added
 
+- Read-only x86-64 PCI Configuration Mechanism #1 enumeration across all bus numbers, including multifunction devices, with vendor/device/class reporting and boot diagnostics.
+- Added `PCI`, `LSPCI` and `HARDWARE` commands to Kash.
 - Initial x86-64 four-level virtual memory manager using the active CR3 page-table hierarchy.
 - Page-table entry and 4 KiB-aligned page-table types, hardware mapping flags, 4 KiB map/unmap operations, virtual-to-physical translation and TLB invalidation.
 - Allocation and zero-initialisation of missing intermediate page tables using the physical frame allocator.
