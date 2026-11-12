@@ -187,6 +187,11 @@ fn report_memory_map() {
         serial::Writer,
         "Virtual memory manager: x86-64 four-level page tables ready"
     );
+    let _ = writeln!(
+        serial::Writer,
+        "CPU NX protection: {}",
+        if paging::no_execute_enabled() { "enabled" } else { "unavailable" }
+    );
 
     let Some(()) = memory::with_global_allocator(|allocator| {
         let initial_free_frames = allocator.free_frame_count();
