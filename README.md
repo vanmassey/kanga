@@ -15,6 +15,7 @@ Kanga currently provides:
 - an x86-64 four-level virtual memory manager using the active CR3 page-table hierarchy, with CPU NX support detected and EFER.NXE enabled before accepting non-executable mappings;
 - a growable, virtually contiguous kernel heap backed by independently allocated physical frames, with aligned allocation, deallocation, coalescing, tail-page reclamation and Rust `GlobalAlloc` integration;
 - page-table entry and page-table types, 4 KiB mapping and unmapping, virtual-to-physical translation, and TLB invalidation;
+- independently allocated PML4 roots that share the higher-half kernel mappings and start with an empty user half;
 - boot-time virtual mapping, translation and unmapping validation;
 - a 32-bit RGB framebuffer text console below the boot mascot, using 8x16 cells and a compact built-in ASCII font;
 - a black console background, light-grey default text, and ANSI SGR standard/bright 16-colour foreground/background rendering;
@@ -86,7 +87,7 @@ A successful inspection only confirms that the listed messages appear in the sav
 
 ## Known limitations
 
-Kanga 0.1.0 is an experimental kernel milestone, not a general-purpose operating system. The current 0.2.0 development branch has an initial virtual-memory manager and a growable kernel heap, but it does not yet provide independent process address spaces, safe page-table reclamation, a complete process model, a documented system-call interface or a general userland. Other missing components include a persistent disk filesystem, PCI device drivers, a general IRQ dispatcher, APIC/IOAPIC support, networking, USB stack, desktop or graphical window system. The physical-frame bitmap manages addresses below 64 GiB. The physical allocator and page-table manager use spin locks that must not be acquired from an interrupt handler that can interrupt a lock holder. Non-executable mappings are rejected unless the processor advertises NX and EFER.NXE is successfully enabled. QEMU validation does not establish compatibility with physical machines; hardware support must be tested separately.
+Kanga 0.1.0 is an experimental kernel milestone, not a general-purpose operating system. The current 0.2.0 development branch has an initial virtual-memory manager, independently allocated inactive address-space roots, and a growable kernel heap. Address-space roots are not yet activated: user mapping ownership, safe page-table reclamation, and CR3 switching are still outstanding. Kanga does not yet provide a complete process model, a complete process model, a documented system-call interface or a general userland. Other missing components include a persistent disk filesystem, PCI device drivers, a general IRQ dispatcher, APIC/IOAPIC support, networking, USB stack, desktop or graphical window system. The physical-frame bitmap manages addresses below 64 GiB. The physical allocator and page-table manager use spin locks that must not be acquired from an interrupt handler that can interrupt a lock holder. Non-executable mappings are rejected unless the processor advertises NX and EFER.NXE is successfully enabled. QEMU validation does not establish compatibility with physical machines; hardware support must be tested separately.
 
 ## Development roadmap
 
