@@ -352,6 +352,64 @@ pub fn address_space_self_test() -> bool {
     passed && first_released && second_released
 }
 
+/// Verify a user mapping in an inactive root is isolated from the active root.
+pub fn address_space_mapping_self_test() -> bool {
+    const TEST_VIRTUAL_ADDRESS: u64 = 0x0000_2000_0000_0000;
+
+    if !matches!(translate(TEST_VIRTUAL_ADDRESS), Err(MappingError::NotMapped)) {
+        return false;
+    }
+
+    let Some(frame) =
+        memory::with_global_allocator(|allocator| allocator.allocate_frame()).flatten()
+    else {
+        return false;
+    };
+    let mut space = match create_address_space() {
+        Ok(space) => space,
+        Err(_) => {
+            let _ = memory::with_global_allocator(|allocator| {
+                // SAFETY: The test frame was allocated and never mapped.
+                unsafe { allocator.deallocate_frame(frame) }
+            });
+            return false;
+        }
+    };
+
+    let flags = PageFlags::USER | PageFlags::WRITABLE | PageFlags::NO_EXECUTE;
+    if space
+        .map_page(TEST_VIRTUAL_ADDRESS, frame, flags)
+        .is_err()
+    {
+        let _ = memory::with_global_allocator(|allocator| {
+            // SAFETY: Mapping failed, so the test still owns the data frame.
+            unsafe { allocator.deallocate_frame(frame) }
+        });
+        let _ = space.destroy();
+        return false;
+    }
+
+    let isolated = space.translate(TEST_VIRTUAL_ADDRESS) == Ok(frame)
+        && matches!(translate(TEST_VIRTUAL_ADDRESS), Err(MappingError::NotMapped));
+    let unmapped = space.unmap_page(TEST_VIRTUAL_ADDRESS) == Ok(frame);
+    let absent_after_unmap = matches!(
+        space.translate(TEST_VIRTUAL_ADDRESS),
+        Err(MappingError::NotMapped)
+    );
+    let returned = if unmapped {
+        memory::with_global_allocator(|allocator| {
+            // SAFETY: The user mapping was removed and the test retains the data frame.
+            unsafe { allocator.deallocate_frame(frame) }
+        })
+        .unwrap_or(false)
+    } else {
+        false
+    };
+    let destroyed = space.destroy();
+
+    isolated && unmapped && absent_after_unmap && returned && destroyed
+}
+
 /// Report whether hardware no-execute protection was successfully enabled.
 pub fn no_execute_enabled() -> bool {
     NX_ENABLED.load(Ordering::Acquire)
