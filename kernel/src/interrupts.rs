@@ -199,6 +199,13 @@ pub fn initialise() {
             selector,
             0,
         );
+        set_gate(
+            idt,
+            0x21,
+            keyboard_interrupt as *const () as usize,
+            selector,
+            0,
+        );
 
         let pointer = IdtPointer {
             limit: (size_of::<[IdtEntry; IDT_ENTRIES]>() - 1) as u16,
@@ -235,11 +242,11 @@ pub fn initialise() {
     crate::pic::initialise();
     let _ = writeln!(
         crate::serial::Writer,
-        "Interrupts: PIC remapped; timer IRQ0 enabled, other legacy IRQs masked"
+        "Interrupts: PIC remapped; timer IRQ0 and keyboard IRQ1 enabled, other legacy IRQs masked"
     );
     crate::pit::initialise();
     let _ = writeln!(crate::serial::Writer, "Timer: PIT configured at 100 Hz");
-    // SAFETY: The IDT, TSS, PIC and PIT are ready; only IRQ0 is unmasked.
+    // SAFETY: The IDT, TSS, PIC and PIT are ready; IRQ0 and IRQ1 are unmasked.
     unsafe {
         asm!("sti", options(nomem, nostack));
     }
@@ -247,6 +254,10 @@ pub fn initialise() {
         crate::serial::Writer,
         "Interrupts: maskable interrupts enabled"
     );
+}
+
+extern "x86-interrupt" fn keyboard_interrupt(_frame: InterruptStackFrame) {
+    crate::keyboard::handle_interrupt();
 }
 
 unsafe fn set_gate(idt: *mut IdtEntry, vector: usize, handler: usize, selector: u16, ist: u8) {

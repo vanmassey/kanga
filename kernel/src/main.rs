@@ -9,9 +9,11 @@ use limine::request::{HhdmRequest, MemoryMapRequest, RequestsEndMarker, Requests
 use limine::BaseRevision;
 
 mod console;
+mod display;
 mod filesystem;
 mod heap;
 mod interrupts;
+mod keyboard;
 mod memory;
 mod mascot;
 /// Public x86-64 virtual-memory interface for the kernel.
@@ -63,11 +65,18 @@ pub extern "C" fn kanga_entry() -> ! {
     let _ = writeln!(serial::Writer, "Boot protocol: Limine");
 
     if mascot::draw() {
-        let _ = writeln!(serial::Writer, "Framebuffer mascot: Kanga rendered and centred");
+        let _ = writeln!(serial::Writer, "Framebuffer mascot: Kanga rendered in upper display region");
     } else {
         let _ = writeln!(serial::Writer, "Framebuffer mascot: unavailable (no compatible RGB 32-bit framebuffer)");
     }
 
+    if display::initialise() {
+        let _ = writeln!(display::Writer, "Kanga framebuffer console ready");
+    } else {
+        let _ = writeln!(serial::Writer, "Framebuffer console: unavailable");
+    }
+
+    keyboard::initialise();
     interrupts::initialise();
     match rtc::read() {
         Some(clock) => {
@@ -343,6 +352,10 @@ fn idle() -> ! {
             let _ = writeln!(
                 serial::Writer,
                 "Scheduler runtime test: passed (timer pre-emption and both workers observed)"
+            );
+            let _ = writeln!(
+                display::Writer,
+                "Kernel initialisation complete. Scheduler test: passed."
             );
             let elapsed = pit::elapsed_tenths();
             let (current, switches, worker_a_ticks, worker_b_ticks) = scheduler::statistics();

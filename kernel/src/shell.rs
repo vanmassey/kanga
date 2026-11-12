@@ -1,15 +1,15 @@
-//! kash: the Kanga serial shell.
+//! kash: the Kanga shell, rendered in the framebuffer and mirrored to COM1.
 //!
-//! The shell runs on the bootstrap thread from the idle loop. It reads bytes
-//! from COM1, supports line editing and command history over ANSI terminals,
-//! and drives KangaFS plus the kernel's diagnostic services. All state lives in
-//! the `Shell` value owned by the idle loop; nothing here allocates.
+//! The shell runs on the bootstrap thread from the idle loop. It accepts
+//! translated PS/2 keyboard input (and optional COM1 input), supports line
+//! editing and command history, and drives KangaFS plus kernel diagnostics.
+//! All state lives in the `Shell` value owned by the idle loop; nothing allocates.
 
 use core::fmt::Write;
 
 use crate::filesystem::{self, Error, FileSystem};
-use crate::serial::Writer;
-use crate::{console, heap, mascot, memory, paging, pit, power, rtc, scheduler};
+use crate::display::Writer;
+use crate::{console, heap, keyboard, mascot, memory, paging, pit, power, rtc, scheduler};
 
 const LINE_CAPACITY: usize = 128;
 const HISTORY_DEPTH: usize = 8;
@@ -100,9 +100,9 @@ impl Shell {
         prompt();
     }
 
-    /// Process every byte currently waiting in the UART receive FIFO.
+    /// Process translated keyboard input, with COM1 retained as a fallback.
     pub fn poll(&mut self) {
-        while let Some(byte) = console::read_byte() {
+        while let Some(byte) = keyboard::read_byte().or_else(console::read_byte) {
             self.handle_byte(byte);
         }
     }

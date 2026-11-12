@@ -8,6 +8,37 @@ use limine::request::FramebufferRequest;
 #[link_section = ".limine_requests"]
 static FRAMEBUFFER_REQUEST: FramebufferRequest = FramebufferRequest::new();
 
+/// Metadata for the single Limine framebuffer request shared by the mascot
+/// and text console. Keeping one request avoids duplicate-ID bootloader errors.
+#[derive(Clone, Copy)]
+pub(crate) struct FramebufferInfo {
+    pub address: *mut u8,
+    pub width: u64,
+    pub height: u64,
+    pub pitch: u64,
+    pub bpp: u16,
+    pub is_rgb: bool,
+    pub red_shift: u8,
+    pub green_shift: u8,
+    pub blue_shift: u8,
+}
+
+pub(crate) fn framebuffer_info() -> Option<FramebufferInfo> {
+    let response = FRAMEBUFFER_REQUEST.get_response()?;
+    let framebuffer = response.framebuffers().next()?;
+    Some(FramebufferInfo {
+        address: framebuffer.addr(),
+        width: framebuffer.width(),
+        height: framebuffer.height(),
+        pitch: framebuffer.pitch(),
+        bpp: framebuffer.bpp(),
+        is_rgb: framebuffer.memory_model() == MemoryModel::RGB,
+        red_shift: framebuffer.red_mask_shift(),
+        green_shift: framebuffer.green_mask_shift(),
+        blue_shift: framebuffer.blue_mask_shift(),
+    })
+}
+
 const DESIGN_W: i32 = 160;
 const DESIGN_H: i32 = 200;
 
@@ -109,40 +140,37 @@ impl Canvas {
     }
 }
 
-/// Draw the Kanga mascot in the centre of the first RGB 32-bit Limine framebuffer.
+/// Draw the Kanga mascot in the upper region of the shared RGB framebuffer.
 /// Returns false when the bootloader did not provide a compatible framebuffer.
 pub fn draw() -> bool {
-    // SAFETY: Limine owns the response and framebuffer mapping for the kernel lifetime.
-    let Some(response) = (unsafe { FRAMEBUFFER_REQUEST.get_response() }) else {
+    let Some(framebuffer) = framebuffer_info() else {
         return false;
     };
-    // The Limine 0.5 API exposes framebuffers as an iterator.
-    let Some(framebuffer) = response.framebuffers().next() else {
-        return false;
-    };
-    if framebuffer.bpp() != 32 || framebuffer.memory_model() != MemoryModel::RGB {
+    if framebuffer.bpp != 32 || !framebuffer.is_rgb {
         return false;
     }
 
-    let width = framebuffer.width().min(i32::MAX as u64) as i32;
-    let height = framebuffer.height().min(i32::MAX as u64) as i32;
-    let pitch = framebuffer.pitch() as usize;
-    let scale = (width / DESIGN_W).min(height / DESIGN_H).min(4);
+    let width = framebuffer.width.min(i32::MAX as u64) as i32;
+    let height = framebuffer.height.min(i32::MAX as u64) as i32;
+    let pitch = framebuffer.pitch as usize;
+    // Reserve the lower third for the framebuffer-backed Kash terminal.
+    let mascot_region_height = height * 2 / 3;
+    let scale = (width / DESIGN_W).min(mascot_region_height / DESIGN_H).min(4);
     if scale < 1 || pitch < width as usize * 4 {
         return false;
     }
 
     let mut canvas = Canvas {
-        address: framebuffer.addr(),
+        address: framebuffer.address,
         width,
         height,
         pitch,
         scale,
         left: (width - DESIGN_W * scale) / 2,
-        top: (height - DESIGN_H * scale) / 2,
-        red_shift: framebuffer.red_mask_shift(),
-        green_shift: framebuffer.green_mask_shift(),
-        blue_shift: framebuffer.blue_mask_shift(),
+        top: (mascot_region_height - DESIGN_H * scale) / 2,
+        red_shift: framebuffer.red_shift,
+        green_shift: framebuffer.green_shift,
+        blue_shift: framebuffer.blue_shift,
     };
 
     const BLACK: u32 = 0x101018;
