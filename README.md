@@ -12,7 +12,7 @@ Kanga currently provides:
 - COM1 serial diagnostics and mirrored shell output;
 - Limine memory-map reporting and a bitmap physical-frame allocator for page-aligned 4 KiB frames below 4 GiB;
 - a higher-half direct-map address conversion helper and boot-time frame read/write checks;
-- an x86-64 four-level virtual memory manager using the active CR3 page-table hierarchy;
+- an x86-64 four-level virtual memory manager using the active CR3 page-table hierarchy, with CPU NX support detected and EFER.NXE enabled before accepting non-executable mappings;
 - page-table entry and page-table types, 4 KiB mapping and unmapping, virtual-to-physical translation, and TLB invalidation;
 - boot-time virtual mapping, translation and unmapping validation;
 - a 32-bit RGB framebuffer text console below the boot mascot, using 8x16 cells and a compact built-in ASCII font;
@@ -85,7 +85,7 @@ A successful inspection only confirms that the listed messages appear in the sav
 
 ## Known limitations
 
-Kanga 0.1.0 is an experimental kernel milestone, not a general-purpose operating system. The current 0.2.0 development branch has an initial virtual-memory manager, but it does not yet provide independent process address spaces, safe page-table reclamation, a kernel heap, multitasking, user mode or a system-call interface. Other missing components include a persistent disk filesystem, PCI device drivers, a general IRQ dispatcher, APIC/IOAPIC support, networking, USB stack, desktop or graphical window system. The physical-frame bitmap manages addresses below 4 GiB. The physical allocator and page-table manager use spin locks that must not be acquired from an interrupt handler that can interrupt a lock holder. The no-execute PTE flag must not be used until EFER.NXE is enabled. QEMU validation does not establish compatibility with physical machines; hardware support must be tested separately.
+Kanga 0.1.0 is an experimental kernel milestone, not a general-purpose operating system. The current 0.2.0 development branch has an initial virtual-memory manager, but it does not yet provide independent process address spaces, safe page-table reclamation, a kernel heap, multitasking, user mode or a system-call interface. Other missing components include a persistent disk filesystem, PCI device drivers, a general IRQ dispatcher, APIC/IOAPIC support, networking, USB stack, desktop or graphical window system. The physical-frame bitmap manages addresses below 64 GiB. The physical allocator and page-table manager use spin locks that must not be acquired from an interrupt handler that can interrupt a lock holder. Non-executable mappings are rejected unless the processor advertises NX and EFER.NXE is successfully enabled. QEMU validation does not establish compatibility with physical machines; hardware support must be tested separately.
 
 ## Development roadmap
 
