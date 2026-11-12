@@ -127,7 +127,9 @@ pub fn draw() -> bool {
     let width = framebuffer.width().min(i32::MAX as u64) as i32;
     let height = framebuffer.height().min(i32::MAX as u64) as i32;
     let pitch = framebuffer.pitch() as usize;
-    let scale = (width / DESIGN_W).min(height / DESIGN_H).min(4);
+    // Reserve the lower third for the framebuffer-backed Kash terminal.
+    let mascot_region_height = height * 2 / 3;
+    let scale = (width / DESIGN_W).min(mascot_region_height / DESIGN_H).min(4);
     if scale < 1 || pitch < width as usize * 4 {
         return false;
     }
@@ -139,7 +141,7 @@ pub fn draw() -> bool {
         pitch,
         scale,
         left: (width - DESIGN_W * scale) / 2,
-        top: (height - DESIGN_H * scale) / 2,
+        top: (mascot_region_height - DESIGN_H * scale) / 2,
         red_shift: framebuffer.red_mask_shift(),
         green_shift: framebuffer.green_mask_shift(),
         blue_shift: framebuffer.blue_mask_shift(),
