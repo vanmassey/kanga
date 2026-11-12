@@ -21,10 +21,11 @@ Kanga currently provides:
 - interrupt-driven PS/2 keyboard input through IRQ1, including Shift, Caps Lock, Backspace and arrow keys;
 - a 256-entry IDT with fatal CPU exception handlers for vectors 0–31;
 - a remapped legacy 8259 PIC, with keyboard IRQ1 and PIT timer IRQ0 enabled;
-- a 100 Hz PIT tick counter, uptime reporting and a CMOS real-time clock reader; and
+- a 100 Hz PIT tick counter, uptime reporting and a CMOS real-time clock reader;
+- read-only PCI configuration-space enumeration, including multifunction devices; and
 - KangaFS, a bounded RAM filesystem with a root directory, sixteen file slots, filenames up to 24 characters and file contents up to 256 bytes.
 
-The shell includes `HELP`, `DIR`, `CLS`, `VER`, `ECHO`, `INFO`, `MEM`, `TIME`, `DATE` (also `CLOCK`/`RTC`), `UPTIME`, `ABOUT`, `CAL`, `HALT`, `FSINFO`, `WRITE`, `TYPE`, `COPY` and `DEL`. Commands are case-insensitive. KangaFS contents exist only in RAM and are lost on reboot.
+The shell includes `HELP`, `DIR`, `CLS`, `VER`, `ECHO`, `INFO`, `MEM`, `TIME`, `DATE` (also `CLOCK`/`RTC`), `UPTIME`, `PCI`, `LSPCI`, `HARDWARE`, `HALT`, `FSINFO`, `WRITE`, `TYPE`, `COPY` and `DEL`. Commands are case-insensitive. KangaFS contents exist only in RAM and are lost on reboot.
 
 The shell retains the eight most recent commands. Use **Up Arrow** and **Down Arrow** to browse command history. The framebuffer renderer supports ASCII text, line wrapping, scrolling, backspace, clear-screen and basic ANSI SGR palette colours. It does not yet provide output scrollback, arbitrary cursor positioning or 24-bit true colour.
 
@@ -64,7 +65,7 @@ The ISO build downloads a pinned Limine 12.9.6 binary release and verifies its S
 
 ## Automated validation
 
-GitHub Actions checks shell-script syntax and Rust formatting, builds the bootable ISO, and boots Kanga in QEMU. It injects shell commands through the virtual keyboard and verifies boot diagnostics, physical and virtual memory allocator checks, clock output, RAM filesystem operations and shell output over serial. It captures live, HELP, scrollback and ANSI-colour framebuffer screenshots, checks that the images are non-blank, and verifies the expected ANSI palette colours. The workflow uploads the ISO, serial log and screenshots as an artifact.
+GitHub Actions checks shell-script syntax and Rust formatting, builds the bootable ISO, and boots Kanga in QEMU. It injects shell commands through the virtual keyboard and verifies boot diagnostics, physical and virtual memory allocator checks, clock output, RAM filesystem operations and shell output over serial. It captures live, HELP, scrollback and ANSI-colour framebuffer screenshots, checks that the images are non-blank, verifies the expected ANSI palette colours, and checks PCI enumeration during boot. The workflow uploads the ISO, serial log and screenshots as an artifact.
 
 ### Inspecting a saved serial log
 
@@ -84,7 +85,7 @@ A successful inspection only confirms that the listed messages appear in the sav
 
 ## Known limitations
 
-Kanga 0.1.0 is an experimental kernel milestone, not a general-purpose operating system. The current 0.2.0 development branch has an initial virtual-memory manager, but it does not yet provide independent process address spaces, safe page-table reclamation, a kernel heap, multitasking, user mode or a system-call interface. Other missing components include a persistent disk filesystem, PCI device discovery, a general IRQ dispatcher, APIC/IOAPIC support, networking, USB stack, desktop or graphical window system. The physical-frame bitmap manages addresses below 4 GiB. The physical allocator and page-table manager use spin locks that must not be acquired from an interrupt handler that can interrupt a lock holder. The no-execute PTE flag must not be used until EFER.NXE is enabled. QEMU validation does not establish compatibility with physical machines; hardware support must be tested separately.
+Kanga 0.1.0 is an experimental kernel milestone, not a general-purpose operating system. The current 0.2.0 development branch has an initial virtual-memory manager, but it does not yet provide independent process address spaces, safe page-table reclamation, a kernel heap, multitasking, user mode or a system-call interface. Other missing components include a persistent disk filesystem, PCI device drivers, a general IRQ dispatcher, APIC/IOAPIC support, networking, USB stack, desktop or graphical window system. The physical-frame bitmap manages addresses below 4 GiB. The physical allocator and page-table manager use spin locks that must not be acquired from an interrupt handler that can interrupt a lock holder. The no-execute PTE flag must not be used until EFER.NXE is enabled. QEMU validation does not establish compatibility with physical machines; hardware support must be tested separately.
 
 ## Development roadmap
 
