@@ -25,7 +25,7 @@ COMMAND_TIMEOUT = 10.0
 
 # (command typed at the prompt, substrings its output must contain)
 CASES = [
-    ("help", ["kash commands", "HEXDUMP"]),
+    ("help", ["KANGA DOS commands", "HEXDUMP"]),
     ("ver", ["Kanga kernel"]),
     ("echo kanga rules", ["\r\nkanga rules"]),
     ("write hello.txt hello kanga", ["bytes written to hello.txt"]),
