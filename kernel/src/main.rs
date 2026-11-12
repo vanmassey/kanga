@@ -8,6 +8,8 @@ use limine::memory_map::EntryType;
 use limine::request::{HhdmRequest, MemoryMapRequest, RequestsEndMarker, RequestsStartMarker};
 use limine::BaseRevision;
 
+mod console;
+mod filesystem;
 mod heap;
 mod interrupts;
 mod memory;
@@ -16,8 +18,10 @@ mod mascot;
 pub mod paging;
 mod pic;
 mod pit;
+mod power;
 mod rtc;
 mod scheduler;
+mod shell;
 
 static mut FRAME_BITMAP: [u64; memory::BITMAP_WORDS] = [u64::MAX; memory::BITMAP_WORDS];
 
@@ -326,6 +330,8 @@ fn report_memory_map() {
 
 fn idle() -> ! {
     let mut scheduler_reported = false;
+    let mut shell_started = false;
+    let mut shell = shell::Shell::new();
     loop {
         // Keep interrupts enabled so the timer and scheduler continue running.
         // SAFETY: HLT is valid in the privileged kernel context.
@@ -370,6 +376,16 @@ fn idle() -> ! {
                 }
             }
             scheduler_reported = true;
+        }
+
+        // Start the shell once the scheduler report is out, or after one
+        // second if the scheduler never came up.
+        if !shell_started && (scheduler_reported || pit::ticks() >= 100) {
+            shell.start();
+            shell_started = true;
+        }
+        if shell_started {
+            shell.poll();
         }
     }
 }
