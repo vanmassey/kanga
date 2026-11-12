@@ -25,6 +25,7 @@ const RING3_TEST_CODE: u64 = 0x0000_4000_0000_0000;
 const RING3_TEST_DATA: u64 = RING3_TEST_CODE + 0x1000;
 const RING3_TEST_STACK: u64 = RING3_TEST_CODE + 0x2000;
 const RING3_TEST_DONE: u32 = 0x4B41_4E47;
+const RING3_TEST_READY: u32 = 0x5245_4144;
 static RING3_TEST_DATA_POINTER: AtomicUsize = AtomicUsize::new(0);
 static RING3_TEST_ACTIVE: AtomicBool = AtomicBool::new(false);
 static RING3_TEST_PASSED: AtomicBool = AtomicBool::new(false);
@@ -172,6 +173,7 @@ global_asm!(
     "movabs r13, 0xccccddddeeeeffff",
     "movabs r14, 0xddddeeeeffff0001",
     "movabs r15, 0xeeeeffff00011112",
+    "mov dword ptr [rax + 8], 0x52454144",
     "2:",
     "cmp dword ptr [rax], 2",
     "jb 2b",
@@ -591,7 +593,21 @@ fn handle_ring3_test_interrupt(frame: *mut RegisterFrame) {
         && frame.r14 == 0xdddd_eeee_ffff_0001
         && frame.r15 == 0xeeee_ffff_0001_1112;
 
-    if !context_valid || data_pointer.is_null() {
+    if data_pointer.is_null() {
+        RING3_TEST_FAILED.store(true, Ordering::Release);
+        return_to_kernel_test_context(frame);
+        return;
+    }
+
+    // The first timer interrupt can arrive while ring-3 code is still loading
+    // its sentinel registers. Ignore those early frames until the user code
+    // publishes READY after all registers have their expected values.
+    let ready = unsafe { ptr::read_volatile(data_pointer.add(2)) };
+    if ready != RING3_TEST_READY {
+        return;
+    }
+
+    if !context_valid {
         RING3_TEST_FAILED.store(true, Ordering::Release);
         return_to_kernel_test_context(frame);
         return;
