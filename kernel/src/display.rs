@@ -1,18 +1,15 @@
-//! Minimal RGB framebuffer text console for the graphical QEMU display.
+//! Full-screen RGB framebuffer text console with a classic DOS appearance.
 //!
-//! The console occupies the lower third of the display so the Kanga
-//! mascot can remain visible above it. It uses fixed 8x16 character cells,
-//! a compact built-in 5x7 ASCII font, and no heap allocation.
+//! The console uses the full framebuffer in a classic DOS-style blue text mode.
+//! It uses fixed 8x16 character cells, a compact built-in 5x7 ASCII font, and no heap allocation.
 
 use core::fmt;
 use core::ptr;
 
 const CELL_WIDTH: usize = 8;
 const CELL_HEIGHT: usize = 16;
-const CONSOLE_TOP_NUMERATOR: usize = 2;
-const CONSOLE_TOP_DENOMINATOR: usize = 3;
-const DEFAULT_FG: u32 = 0xD8DEE9;
-const DEFAULT_BG: u32 = 0x101018;
+const DEFAULT_FG: u32 = 0xFFFFFF;
+const DEFAULT_BG: u32 = 0x0000AA;
 
 struct Display {
     address: *mut u8,
@@ -35,7 +32,7 @@ struct Display {
 
 static mut DISPLAY: Option<Display> = None;
 
-/// Initialise the text area below the mascot. Returns false if no supported
+/// Initialise the full-screen DOS text console. Returns false if no supported
 /// 32-bit RGB framebuffer was supplied by Limine.
 pub fn initialise() -> bool {
     let Some(framebuffer) = crate::mascot::framebuffer_info() else {
@@ -48,11 +45,8 @@ pub fn initialise() -> bool {
     let width = framebuffer.width.min(usize::MAX as u64) as usize;
     let height = framebuffer.height.min(usize::MAX as u64) as usize;
     let pitch = framebuffer.pitch as usize;
-    let top = (height * CONSOLE_TOP_NUMERATOR / CONSOLE_TOP_DENOMINATOR / CELL_HEIGHT)
-        * CELL_HEIGHT;
-    if width < CELL_WIDTH || height.saturating_sub(top) < CELL_HEIGHT * 3
-        || pitch < width.saturating_mul(4)
-    {
+    let top = 0;
+    if width < CELL_WIDTH || height < CELL_HEIGHT * 8 || pitch < width.saturating_mul(4) {
         return false;
     }
 
@@ -354,6 +348,7 @@ fn glyph_row(byte: u8, row: usize) -> u8 {
         b'?' => [14,17,1,2,4,0,4],
         b'-' => [0,0,0,31,0,0,0],
         b'_' => [0,0,0,0,0,0,31],
+        b'^' => [4,10,17,0,0,0,0],
         b'+' => [0,4,4,31,4,4,0],
         b'=' => [0,31,0,31,0,0,0],
         b'/' => [1,2,2,4,8,8,16],

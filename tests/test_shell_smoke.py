@@ -1,4 +1,4 @@
-"""Host-side tests for the kash shell smoke-test transcript checker."""
+"""Host-side tests for the Kanga DOS shell smoke-test transcript checker."""
 
 from importlib import util
 from pathlib import Path
@@ -16,7 +16,7 @@ spec.loader.exec_module(shell_smoke)
 def build_transcript(cases=None, drop_output=None):
     """Synthesise what a healthy serial session looks like."""
     cases = shell_smoke.CASES if cases is None else cases
-    lines = ["Kernel idle loop reached", "", "Welcome to kash, the Kanga shell."]
+    lines = ["Kernel idle loop reached", "", "Welcome to Kanga DOS"]
     text = "\r\n".join(lines) + "\r\n" + shell_smoke.PROMPT
     for command, expected in cases:
         text += command + "\r\n"
@@ -32,7 +32,7 @@ class TranscriptCheckerTests(unittest.TestCase):
         self.assertEqual(shell_smoke.check_transcript(build_transcript()), [])
 
     def test_missing_banner_is_reported(self):
-        transcript = build_transcript().replace("Welcome to kash", "Welcome")
+        transcript = build_transcript().replace("Welcome to Kanga DOS", "Welcome")
         failures = shell_smoke.check_transcript(transcript)
         self.assertIn("shell banner not found", failures)
 
@@ -53,7 +53,7 @@ class TranscriptCheckerTests(unittest.TestCase):
     def test_output_must_follow_its_own_command(self):
         cases = [("one", ["alpha"]), ("two", ["beta"])]
         # "alpha" appears only after the second prompt, so case one must fail.
-        transcript = "Welcome to kash\r\nkash> one\r\nkash> two\r\nalpha\r\nbeta\r\nkash> "
+        transcript = "Welcome to Kanga DOS\r\nC:\\KANGA> one\r\nC:\\KANGA> two\r\nalpha\r\nbeta\r\nC:\\KANGA> "
         failures = shell_smoke.check_transcript(transcript, cases)
         self.assertEqual(len(failures), 1, failures)
         self.assertIn("'one'", failures[0])
@@ -61,7 +61,7 @@ class TranscriptCheckerTests(unittest.TestCase):
     def test_repeated_commands_are_matched_in_order(self):
         cases = [("type f", ["first"]), ("type f", ["second"])]
         transcript = (
-            "Welcome to kash\r\nkash> type f\r\nfirst\r\nkash> type f\r\nsecond\r\nkash> "
+            "Welcome to Kanga DOS\r\nC:\\KANGA> type f\r\nfirst\r\nC:\\KANGA> type f\r\nsecond\r\nC:\\KANGA> "
         )
         self.assertEqual(shell_smoke.check_transcript(transcript, cases), [])
 
