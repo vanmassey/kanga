@@ -133,9 +133,8 @@ impl PageTable {
 /// An independently allocated PML4 root with the kernel half shared from the
 /// boot address space. The lower 256 PML4 entries begin empty.
 ///
-/// This is an ownership and construction primitive only: it is not yet safe to
-/// activate an instance. User mappings, page-table ownership and CR3 switching
-/// are added by later virtual-memory work.
+/// User mappings can be built and inspected while the root remains inactive.
+/// CR3 switching and process-level ownership are added by later work.
 pub struct AddressSpace {
     root_frame: u64,
 }
@@ -183,11 +182,108 @@ impl AddressSpace {
         })
     }
 
-    /// Release this root. This is safe because this initial abstraction never
-    /// installs user mappings or owns any lower-level page-table frames.
+    /// Map one user page without changing the currently active CR3.
+    ///
+    /// The physical data frame remains owned by the caller. Intermediate
+    /// page-table frames are owned by this address space and reclaimed by
+    /// `destroy`.
+    pub fn map_page(
+        &mut self,
+        virtual_address: u64,
+        physical_address: u64,
+        flags: PageFlags,
+    ) -> Result<(), MappingError> {
+        let _guard = PageTableGuard::lock();
+        validate_user_address(virtual_address)?;
+        if !flags.contains(PageFlags::USER) || flags.contains(PageFlags::GLOBAL) {
+            return Err(MappingError::InvalidFlags);
+        }
+        map_page_in_root(
+            physical_to_table(self.root_frame)?,
+            virtual_address,
+            physical_address,
+            flags,
+        )
+    }
+
+    /// Translate a user virtual address using this inactive page-table root.
+    pub fn translate(&self, virtual_address: u64) -> Result<u64, MappingError> {
+        validate_user_address(virtual_address)?;
+        if !INITIALISED.load(Ordering::Acquire) {
+            return Err(MappingError::NotInitialised);
+        }
+        translate_in_root(physical_to_table(self.root_frame)?, virtual_address)
+    }
+
+    /// Check that every paging level grants user-mode access to this page.
+    pub fn mapping_is_user_accessible(&self, virtual_address: u64) -> bool {
+        if validate_user_address(virtual_address).is_err() {
+            return false;
+        }
+        let Ok(mut table) = physical_to_table(self.root_frame) else {
+            return false;
+        };
+        let indices = page_indices(virtual_address);
+        for (level, index) in indices.iter().enumerate() {
+            // SAFETY: table points to a valid page-table frame owned/shared by this root.
+            let entry =
+                unsafe { core::ptr::read_volatile(core::ptr::addr_of!((*table).entries[*index])) };
+            if !entry.is_present() || !entry.is_user_accessible() {
+                return false;
+            }
+            if level == 3 {
+                return true;
+            }
+            if entry.is_huge() {
+                return false;
+            }
+            let Ok(next) = table_from_physical(entry.physical_address()) else {
+                return false;
+            };
+            table = next;
+        }
+        false
+    }
+
+    /// Remove a user mapping and return its physical data-frame address.
+    pub fn unmap_page(&mut self, virtual_address: u64) -> Result<u64, MappingError> {
+        let _guard = PageTableGuard::lock();
+        validate_user_address(virtual_address)?;
+        unmap_page_in_root(virtual_address, physical_to_table(self.root_frame)?)
+    }
+
+    /// Release this root and all page-table frames owned by its user half.
+    ///
+    /// Leaf data frames are deliberately not freed: their ownership belongs
+    /// to the caller that supplied them to `map_page`.
     pub fn destroy(self) -> bool {
+        let _guard = PageTableGuard::lock();
+        let Ok(root) = physical_to_table(self.root_frame) else {
+            return false;
+        };
+
+        // Validate the complete tree before freeing anything, so malformed or
+        // unsupported huge-page entries cannot cause a partial teardown.
+        for index in 0..256 {
+            // SAFETY: root is this address space's exclusively owned PML4.
+            let entry =
+                unsafe { core::ptr::read_volatile(core::ptr::addr_of!((*root).entries[index])) };
+            if entry.is_present() && !validate_user_table_tree(entry.physical_address(), 3) {
+                return false;
+            }
+        }
+
+        for index in 0..256 {
+            // SAFETY: root remains exclusively owned while the lock is held.
+            let entry =
+                unsafe { core::ptr::read_volatile(core::ptr::addr_of!((*root).entries[index])) };
+            if entry.is_present() && !release_user_table_tree(entry.physical_address(), 3) {
+                return false;
+            }
+        }
+
         memory::with_global_allocator(|allocator| {
-            // SAFETY: This object uniquely owns the allocated root frame.
+            // SAFETY: This object uniquely owns the PML4 root frame.
             unsafe { allocator.deallocate_frame(self.root_frame) }
         })
         .unwrap_or(false)
@@ -208,6 +304,7 @@ pub enum MappingError {
     OutOfFrames,
     AddressOverflow,
     NoExecuteUnavailable,
+    KernelAddressProtected,
 }
 
 /// Initialise the manager with Limine's higher-half direct-map offset.
@@ -284,6 +381,65 @@ pub fn address_space_self_test() -> bool {
     passed && first_released && second_released
 }
 
+/// Verify a user mapping in an inactive root is isolated from the active root.
+pub fn address_space_mapping_self_test() -> bool {
+    const TEST_VIRTUAL_ADDRESS: u64 = 0x0000_2000_0000_0000;
+
+    if !matches!(translate(TEST_VIRTUAL_ADDRESS), Err(MappingError::NotMapped)) {
+        return false;
+    }
+
+    let Some(frame) =
+        memory::with_global_allocator(|allocator| allocator.allocate_frame()).flatten()
+    else {
+        return false;
+    };
+    let mut space = match create_address_space() {
+        Ok(space) => space,
+        Err(_) => {
+            let _ = memory::with_global_allocator(|allocator| {
+                // SAFETY: The test frame was allocated and never mapped.
+                unsafe { allocator.deallocate_frame(frame) }
+            });
+            return false;
+        }
+    };
+
+    let flags = PageFlags::USER | PageFlags::WRITABLE | PageFlags::NO_EXECUTE;
+    if space
+        .map_page(TEST_VIRTUAL_ADDRESS, frame, flags)
+        .is_err()
+    {
+        let _ = memory::with_global_allocator(|allocator| {
+            // SAFETY: Mapping failed, so the test still owns the data frame.
+            unsafe { allocator.deallocate_frame(frame) }
+        });
+        let _ = space.destroy();
+        return false;
+    }
+
+    let isolated = space.translate(TEST_VIRTUAL_ADDRESS) == Ok(frame)
+        && space.mapping_is_user_accessible(TEST_VIRTUAL_ADDRESS)
+        && matches!(translate(TEST_VIRTUAL_ADDRESS), Err(MappingError::NotMapped));
+    let unmapped = space.unmap_page(TEST_VIRTUAL_ADDRESS) == Ok(frame);
+    let absent_after_unmap = matches!(
+        space.translate(TEST_VIRTUAL_ADDRESS),
+        Err(MappingError::NotMapped)
+    );
+    let returned = if unmapped {
+        memory::with_global_allocator(|allocator| {
+            // SAFETY: The user mapping was removed and the test retains the data frame.
+            unsafe { allocator.deallocate_frame(frame) }
+        })
+        .unwrap_or(false)
+    } else {
+        false
+    };
+    let destroyed = space.destroy();
+
+    isolated && unmapped && absent_after_unmap && returned && destroyed
+}
+
 /// Report whether hardware no-execute protection was successfully enabled.
 pub fn no_execute_enabled() -> bool {
     NX_ENABLED.load(Ordering::Acquire)
@@ -296,12 +452,12 @@ pub fn no_execute_enabled() -> bool {
 fn enable_nx_protection() -> bool {
     // SAFETY: CPUID is available in long mode and these leaves are queried only
     // after checking the maximum supported extended leaf.
-    let maximum = unsafe { core::arch::x86_64::__cpuid(0x8000_0000) }.eax;
+    let maximum = core::arch::x86_64::__cpuid(0x8000_0000).eax;
     if maximum < 0x8000_0001 {
         return false;
     }
     // SAFETY: The extended feature leaf is supported by the preceding check.
-    let features = unsafe { core::arch::x86_64::__cpuid(0x8000_0001) };
+    let features = core::arch::x86_64::__cpuid(0x8000_0001);
     if features.edx & (1 << 20) == 0 {
         return false;
     }
@@ -354,129 +510,15 @@ pub fn map_page(
     flags: PageFlags,
 ) -> Result<(), MappingError> {
     let _guard = PageTableGuard::lock();
-    validate_addresses(virtual_address, physical_address)?;
-    if !INITIALISED.load(Ordering::Acquire) {
-        return Err(MappingError::NotInitialised);
-    }
-    if flags.0 & !PageFlags::ALLOWED != 0 {
-        return Err(MappingError::InvalidFlags);
-    }
-    if flags.contains(PageFlags::NO_EXECUTE) && !no_execute_enabled() {
-        return Err(MappingError::NoExecuteUnavailable);
-    }
-
-    let indices = page_indices(virtual_address);
-    let mut table = active_root()?;
-    let user = flags.contains(PageFlags::USER);
-
-    for index in indices.iter().take(3) {
-        let entry =
-            unsafe { core::ptr::read_volatile(core::ptr::addr_of!((*table).entries[*index])) };
-        if entry.is_present() {
-            if entry.is_huge() {
-                return Err(MappingError::HugePageConflict);
-            }
-            let mut promoted = entry.raw() | PageFlags::WRITABLE.0;
-            if user {
-                promoted |= PageFlags::USER.0;
-            }
-            if !flags.contains(PageFlags::NO_EXECUTE) {
-                promoted &= !NX;
-            }
-            if promoted != entry.raw() {
-                // SAFETY: This is a valid intermediate entry in the active hierarchy.
-                unsafe {
-                    core::ptr::write_volatile(
-                        core::ptr::addr_of_mut!((*table).entries[*index]),
-                        PageTableEntry(promoted),
-                    );
-                }
-            }
-            table = table_from_physical(entry.physical_address())?;
-        } else {
-            let frame = allocate_table_frame()?;
-            let child = physical_to_table(frame)?;
-            // SAFETY: The frame was freshly allocated and is exclusively owned.
-            unsafe { core::ptr::write_bytes(child.cast::<u8>(), 0, PAGE_SIZE as usize) };
-            let new_entry = PageTableEntry::table(frame, user);
-            // SAFETY: This table is active and the entry is currently not present.
-            unsafe {
-                core::ptr::write_volatile(
-                    core::ptr::addr_of_mut!((*table).entries[*index]),
-                    new_entry,
-                );
-            }
-            table = child;
-        }
-    }
-
-    let leaf_index = indices[3];
-    // SAFETY: table points to a valid, mapped page-table frame.
-    let leaf =
-        unsafe { core::ptr::read_volatile(core::ptr::addr_of!((*table).entries[leaf_index])) };
-    if leaf.is_present() {
-        return Err(MappingError::AlreadyMapped);
-    }
-
-    let new_leaf = PageTableEntry::page(physical_address, flags);
-    // SAFETY: The leaf entry belongs to the active page-table hierarchy.
-    unsafe {
-        core::ptr::write_volatile(
-            core::ptr::addr_of_mut!((*table).entries[leaf_index]),
-            new_leaf,
-        );
-    }
-    flush_tlb(virtual_address);
-    Ok(())
+    let root = active_root()?;
+    map_page_in_root(root, virtual_address, physical_address, flags)
 }
 
-/// Remove a 4 KiB mapping and return the physical frame address.
-///
-/// Intermediate page tables are intentionally retained. Reclaiming them
-/// safely requires tracking table ownership and proving that they are empty.
+/// Remove a 4 KiB mapping from the active address space and return its frame.
 pub fn unmap_page(virtual_address: u64) -> Result<u64, MappingError> {
     let _guard = PageTableGuard::lock();
-    if !is_canonical(virtual_address) {
-        return Err(MappingError::NonCanonicalAddress);
-    }
-    if virtual_address % PAGE_SIZE != 0 {
-        return Err(MappingError::UnalignedAddress);
-    }
-    if !INITIALISED.load(Ordering::Acquire) {
-        return Err(MappingError::NotInitialised);
-    }
-
-    let indices = page_indices(virtual_address);
-    let mut table = active_root()?;
-    for index in indices.iter().take(3) {
-        // SAFETY: table points to a valid, mapped page-table frame.
-        let entry =
-            unsafe { core::ptr::read_volatile(core::ptr::addr_of!((*table).entries[*index])) };
-        if !entry.is_present() {
-            return Err(MappingError::NotMapped);
-        }
-        if entry.is_huge() {
-            return Err(MappingError::HugePageConflict);
-        }
-        table = table_from_physical(entry.physical_address())?;
-    }
-
-    let leaf_index = indices[3];
-    // SAFETY: table points to a valid, mapped page-table frame.
-    let leaf =
-        unsafe { core::ptr::read_volatile(core::ptr::addr_of!((*table).entries[leaf_index])) };
-    if !leaf.is_present() {
-        return Err(MappingError::NotMapped);
-    }
-    // SAFETY: This clears only the requested leaf mapping.
-    unsafe {
-        core::ptr::write_volatile(
-            core::ptr::addr_of_mut!((*table).entries[leaf_index]),
-            PageTableEntry::default(),
-        );
-    }
-    flush_tlb(virtual_address);
-    Ok(leaf.physical_address())
+    let root = active_root()?;
+    unmap_page_in_root(virtual_address, root)
 }
 
 /// Exercise creation, translation and removal of one temporary mapping.
@@ -525,7 +567,7 @@ pub fn self_test() -> bool {
     translated && unmapped && returned
 }
 
-/// Translate a mapped virtual address to its physical address.
+/// Translate a mapped virtual address in the active address space.
 ///
 /// The returned address includes the original page offset. Existing 1 GiB
 /// and 2 MiB boot mappings are understood; unmapped addresses return an error.
@@ -536,11 +578,157 @@ pub fn translate(virtual_address: u64) -> Result<u64, MappingError> {
     if !INITIALISED.load(Ordering::Acquire) {
         return Err(MappingError::NotInitialised);
     }
+    translate_in_root(active_root()?, virtual_address)
+}
+
+
+/// Map a page in a supplied root. The caller must hold PAGE_TABLE_LOCK.
+fn map_page_in_root(
+    mut table: *mut PageTable,
+    virtual_address: u64,
+    physical_address: u64,
+    flags: PageFlags,
+) -> Result<(), MappingError> {
+    validate_addresses(virtual_address, physical_address)?;
+    if !INITIALISED.load(Ordering::Acquire) {
+        return Err(MappingError::NotInitialised);
+    }
+    if flags.0 & !PageFlags::ALLOWED != 0 {
+        return Err(MappingError::InvalidFlags);
+    }
+    if flags.contains(PageFlags::NO_EXECUTE) && !no_execute_enabled() {
+        return Err(MappingError::NoExecuteUnavailable);
+    }
 
     let indices = page_indices(virtual_address);
-    let mut table = active_root()?;
+    let user = flags.contains(PageFlags::USER);
+
+    for index in indices.iter().take(3) {
+        // SAFETY: table points to a valid page-table frame.
+        let entry =
+            unsafe { core::ptr::read_volatile(core::ptr::addr_of!((*table).entries[*index])) };
+        if entry.is_present() {
+            if entry.is_huge() {
+                return Err(MappingError::HugePageConflict);
+            }
+            let mut promoted = entry.raw() | PageFlags::WRITABLE.0;
+            if user {
+                promoted |= PageFlags::USER.0;
+            }
+            if !flags.contains(PageFlags::NO_EXECUTE) {
+                promoted &= !NX;
+            }
+            if promoted != entry.raw() {
+                // SAFETY: This is a valid intermediate entry in this hierarchy.
+                unsafe {
+                    core::ptr::write_volatile(
+                        core::ptr::addr_of_mut!((*table).entries[*index]),
+                        PageTableEntry(promoted),
+                    );
+                }
+            }
+            table = table_from_physical(entry.physical_address())?;
+        } else {
+            let frame = allocate_table_frame()?;
+            let child = match physical_to_table(frame) {
+                Ok(child) => child,
+                Err(error) => {
+                    let _ = memory::with_global_allocator(|allocator| {
+                        // SAFETY: The new table frame has not been published.
+                        unsafe { allocator.deallocate_frame(frame) }
+                    });
+                    return Err(error);
+                }
+            };
+            // SAFETY: The frame was freshly allocated and is exclusively owned.
+            unsafe { core::ptr::write_bytes(child.cast::<u8>(), 0, PAGE_SIZE as usize) };
+            let new_entry = PageTableEntry::table(frame, user);
+            // SAFETY: This table is valid and the entry is currently not present.
+            unsafe {
+                core::ptr::write_volatile(
+                    core::ptr::addr_of_mut!((*table).entries[*index]),
+                    new_entry,
+                );
+            }
+            table = child;
+        }
+    }
+
+    let leaf_index = indices[3];
+    // SAFETY: table points to a valid, mapped page-table frame.
+    let leaf =
+        unsafe { core::ptr::read_volatile(core::ptr::addr_of!((*table).entries[leaf_index])) };
+    if leaf.is_present() {
+        return Err(MappingError::AlreadyMapped);
+    }
+
+    let new_leaf = PageTableEntry::page(physical_address, flags);
+    // SAFETY: The leaf entry belongs to the selected page-table hierarchy.
+    unsafe {
+        core::ptr::write_volatile(
+            core::ptr::addr_of_mut!((*table).entries[leaf_index]),
+            new_leaf,
+        );
+    }
+    flush_tlb(virtual_address);
+    Ok(())
+}
+
+/// Remove a page from a supplied root. The caller must hold PAGE_TABLE_LOCK.
+fn unmap_page_in_root(
+    virtual_address: u64,
+    mut table: *mut PageTable,
+) -> Result<u64, MappingError> {
+    if !is_canonical(virtual_address) {
+        return Err(MappingError::NonCanonicalAddress);
+    }
+    if virtual_address % PAGE_SIZE != 0 {
+        return Err(MappingError::UnalignedAddress);
+    }
+    if !INITIALISED.load(Ordering::Acquire) {
+        return Err(MappingError::NotInitialised);
+    }
+
+    let indices = page_indices(virtual_address);
+    for index in indices.iter().take(3) {
+        // SAFETY: table points to a valid page-table frame.
+        let entry =
+            unsafe { core::ptr::read_volatile(core::ptr::addr_of!((*table).entries[*index])) };
+        if !entry.is_present() {
+            return Err(MappingError::NotMapped);
+        }
+        if entry.is_huge() {
+            return Err(MappingError::HugePageConflict);
+        }
+        table = table_from_physical(entry.physical_address())?;
+    }
+
+    let leaf_index = indices[3];
+    // SAFETY: table points to a valid page-table frame.
+    let leaf =
+        unsafe { core::ptr::read_volatile(core::ptr::addr_of!((*table).entries[leaf_index])) };
+    if !leaf.is_present() {
+        return Err(MappingError::NotMapped);
+    }
+    // SAFETY: This clears only the requested leaf mapping.
+    unsafe {
+        core::ptr::write_volatile(
+            core::ptr::addr_of_mut!((*table).entries[leaf_index]),
+            PageTableEntry::default(),
+        );
+    }
+    flush_tlb(virtual_address);
+    Ok(leaf.physical_address())
+}
+
+/// Translate a virtual address in a supplied root.
+fn translate_in_root(
+    mut table: *mut PageTable,
+    virtual_address: u64,
+) -> Result<u64, MappingError> {
+    let indices = page_indices(virtual_address);
     for (level, index) in indices.iter().enumerate() {
-        // SAFETY: table points to a valid, mapped page-table frame.
+        // SAFETY: table points to a valid page-table frame.
         let entry =
             unsafe { core::ptr::read_volatile(core::ptr::addr_of!((*table).entries[*index])) };
         if !entry.is_present() {
@@ -561,6 +749,58 @@ pub fn translate(virtual_address: u64) -> Result<u64, MappingError> {
         table = table_from_physical(entry.physical_address())?;
     }
     Err(MappingError::NotMapped)
+}
+
+fn validate_user_address(virtual_address: u64) -> Result<(), MappingError> {
+    if !is_canonical(virtual_address) {
+        return Err(MappingError::NonCanonicalAddress);
+    }
+    if virtual_address >= (1_u64 << 47) {
+        return Err(MappingError::KernelAddressProtected);
+    }
+    Ok(())
+}
+
+/// Check an owned user page-table subtree without modifying it.
+fn validate_user_table_tree(frame: u64, level: usize) -> bool {
+    let Ok(table) = physical_to_table(frame) else {
+        return false;
+    };
+    if level == 1 {
+        return true;
+    }
+    (0..ENTRIES_PER_TABLE).all(|index| {
+        // SAFETY: table is a valid page-table frame in this owned subtree.
+        let entry =
+            unsafe { core::ptr::read_volatile(core::ptr::addr_of!((*table).entries[index])) };
+        !entry.is_present()
+            || (!entry.is_huge()
+                && validate_user_table_tree(entry.physical_address(), level - 1))
+    })
+}
+
+/// Free page-table frames in an owned subtree, never freeing mapped data pages.
+fn release_user_table_tree(frame: u64, level: usize) -> bool {
+    let Ok(table) = physical_to_table(frame) else {
+        return false;
+    };
+    if level > 1 {
+        for index in 0..ENTRIES_PER_TABLE {
+            // SAFETY: table is a valid page-table frame in this owned subtree.
+            let entry =
+                unsafe { core::ptr::read_volatile(core::ptr::addr_of!((*table).entries[index])) };
+            if entry.is_present()
+                && !release_user_table_tree(entry.physical_address(), level - 1)
+            {
+                return false;
+            }
+        }
+    }
+    memory::with_global_allocator(|allocator| {
+        // SAFETY: This frame is an intermediate page table owned by the address space.
+        unsafe { allocator.deallocate_frame(frame) }
+    })
+    .unwrap_or(false)
 }
 
 fn validate_addresses(virtual_address: u64, physical_address: u64) -> Result<(), MappingError> {
