@@ -145,6 +145,43 @@ impl AddressSpace {
         self.root_frame
     }
 
+    /// Activate this address space by loading its PML4 physical address into CR3.
+    ///
+    /// Returns the previously active root so the caller can restore it before
+    /// destroying this address space. The kernel half is shared with the boot
+    /// address space, so the current kernel instruction and stack remain mapped.
+    pub fn activate(&self) -> Result<u64, MappingError> {
+        let _guard = PageTableGuard::lock();
+        let previous: u64;
+        // SAFETY: Reading CR3 is valid in ring 0; the low PCID bits are masked.
+        unsafe {
+            asm!("mov {}, cr3", out(reg) previous, options(nomem, nostack, preserves_flags));
+        }
+        let previous = previous & ADDRESS_MASK;
+        let _ = physical_to_table(self.root_frame)?;
+        // SAFETY: This object owns an aligned PML4 frame with a shared kernel
+        // half. Loading it preserves the currently executing kernel mappings.
+        unsafe {
+            asm!("mov cr3, {}", in(reg) self.root_frame, options(nostack, preserves_flags));
+        }
+        Ok(previous)
+    }
+
+    /// Restore a previously saved PML4 root returned by activate.
+    pub fn restore_root(root_frame: u64) -> Result<(), MappingError> {
+        let _guard = PageTableGuard::lock();
+        if root_frame & !ADDRESS_MASK != 0 || root_frame % PAGE_SIZE != 0 {
+            return Err(MappingError::PhysicalAddressOutOfRange);
+        }
+        let _ = physical_to_table(root_frame)?;
+        // SAFETY: The caller must supply a live root previously returned by
+        // activate; validate its HHDM address before loading it into CR3.
+        unsafe {
+            asm!("mov cr3, {}", in(reg) root_frame, options(nostack, preserves_flags));
+        }
+        Ok(())
+    }
+
     /// Count present entries in the shared higher-half kernel region.
     pub fn kernel_mapping_count(&self) -> usize {
         let Ok(root) = physical_to_table(self.root_frame) else {
