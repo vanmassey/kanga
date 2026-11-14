@@ -243,7 +243,7 @@ pub fn initialise() {
         );
         let _ = writeln!(
             crate::serial::Writer,
-            "Privilege: dedicated TSS RSP0 stack ready; ring 3 remains disabled"
+            "Privilege: dedicated TSS RSP0 stack and DPL-3 syscall gate ready"
         );
     }
     let _ = writeln!(
