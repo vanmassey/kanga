@@ -355,6 +355,18 @@ fn report_memory_map() {
         "Address-space root creation and kernel mapping isolation test: {}",
         if address_spaces_ok { "passed" } else { "FAILED" }
     );
+    let address_space_activation_ok = paging::address_space_activation_self_test();
+    let _ = writeln!(
+        serial::Writer,
+        "Address-space CR3 activation and restoration test: {}",
+        if address_space_activation_ok { "passed" } else { "FAILED" }
+    );
+    let address_space_activation_ok = paging::address_space_activation_self_test();
+    let _ = writeln!(
+        serial::Writer,
+        "Address-space CR3 activation and restoration test: {}",
+        if address_space_activation_ok { "passed" } else { "FAILED" }
+    );
     let user_mapping_ok = paging::address_space_mapping_self_test();
     let _ = writeln!(
         serial::Writer,

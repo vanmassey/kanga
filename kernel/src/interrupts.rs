@@ -63,6 +63,17 @@ impl IdtEntry {
             reserved: 0,
         }
     }
+
+    fn user_callable(handler: usize, selector: u16) -> Self {
+        Self {
+            offset_low: handler as u16,
+            selector,
+            options: 0xEE00,
+            offset_middle: (handler >> 16) as u16,
+            offset_high: (handler >> 32) as u32,
+            reserved: 0,
+        }
+    }
 }
 
 #[repr(C, packed)]
@@ -208,6 +219,12 @@ pub fn initialise() {
             selector,
             0,
         );
+        set_user_gate(
+            idt,
+            0x80,
+            crate::scheduler::syscall_interrupt_entry as *const () as usize,
+            selector,
+        );
 
         let pointer = IdtPointer {
             limit: (size_of::<[IdtEntry; IDT_ENTRIES]>() - 1) as u16,
@@ -226,7 +243,7 @@ pub fn initialise() {
         );
         let _ = writeln!(
             crate::serial::Writer,
-            "Privilege: dedicated TSS RSP0 stack ready; ring 3 remains disabled"
+            "Privilege: dedicated TSS RSP0 stack and DPL-3 syscall gate ready"
         );
     }
     let _ = writeln!(
@@ -266,6 +283,13 @@ unsafe fn set_gate(idt: *mut IdtEntry, vector: usize, handler: usize, selector: 
     // SAFETY: The caller supplies a valid vector within the 256-entry IDT.
     unsafe {
         idt.add(vector).write(IdtEntry::new(handler, selector, ist));
+    }
+}
+
+unsafe fn set_user_gate(idt: *mut IdtEntry, vector: usize, handler: usize, selector: u16) {
+    // SAFETY: The caller supplies a valid vector within the 256-entry IDT.
+    unsafe {
+        idt.add(vector).write(IdtEntry::user_callable(handler, selector));
     }
 }
 

@@ -145,6 +145,43 @@ impl AddressSpace {
         self.root_frame
     }
 
+    /// Activate this address space by loading its PML4 physical address into CR3.
+    ///
+    /// Returns the previously active root so the caller can restore it before
+    /// destroying this address space. The kernel half is shared with the boot
+    /// address space, so the current kernel instruction and stack remain mapped.
+    pub fn activate(&self) -> Result<u64, MappingError> {
+        let _guard = PageTableGuard::lock();
+        let previous: u64;
+        // SAFETY: Reading CR3 is valid in ring 0; the low PCID bits are masked.
+        unsafe {
+            asm!("mov {}, cr3", out(reg) previous, options(nomem, nostack, preserves_flags));
+        }
+        let previous = previous & ADDRESS_MASK;
+        let _ = physical_to_table(self.root_frame)?;
+        // SAFETY: This object owns an aligned PML4 frame with a shared kernel
+        // half. Loading it preserves the currently executing kernel mappings.
+        unsafe {
+            asm!("mov cr3, {}", in(reg) self.root_frame, options(nostack, preserves_flags));
+        }
+        Ok(previous)
+    }
+
+    /// Restore a previously saved PML4 root returned by activate.
+    pub fn restore_root(root_frame: u64) -> Result<(), MappingError> {
+        let _guard = PageTableGuard::lock();
+        if root_frame & !ADDRESS_MASK != 0 || root_frame % PAGE_SIZE != 0 {
+            return Err(MappingError::PhysicalAddressOutOfRange);
+        }
+        let _ = physical_to_table(root_frame)?;
+        // SAFETY: The caller must supply a live root previously returned by
+        // activate; validate its HHDM address before loading it into CR3.
+        unsafe {
+            asm!("mov cr3, {}", in(reg) root_frame, options(nostack, preserves_flags));
+        }
+        Ok(())
+    }
+
     /// Count present entries in the shared higher-half kernel region.
     pub fn kernel_mapping_count(&self) -> usize {
         let Ok(root) = physical_to_table(self.root_frame) else {
@@ -352,6 +389,37 @@ pub fn create_address_space() -> Result<AddressSpace, MappingError> {
     }
 
     Ok(AddressSpace { root_frame: frame })
+}
+
+/// Verify that CR3 can switch to an isolated root and return to the boot root.
+pub fn address_space_activation_self_test() -> bool {
+    let space = match create_address_space() {
+        Ok(space) => space,
+        Err(_) => return false,
+    };
+    let target = space.root_physical_address();
+    let previous = match space.activate() {
+        Ok(root) => root,
+        Err(_) => {
+            let _ = space.destroy();
+            return false;
+        }
+    };
+    let active: u64;
+    // SAFETY: Read the current privileged page-table root for the self-test.
+    unsafe {
+        asm!("mov {}, cr3", out(reg) active, options(nomem, nostack, preserves_flags));
+    }
+    let switched = active & ADDRESS_MASK == target;
+    let restored = AddressSpace::restore_root(previous).is_ok();
+    let after_restore: u64;
+    // SAFETY: Read CR3 after restoring the saved root.
+    unsafe {
+        asm!("mov {}, cr3", out(reg) after_restore, options(nomem, nostack, preserves_flags));
+    }
+    let returned = after_restore & ADDRESS_MASK == previous;
+    let destroyed = space.destroy();
+    switched && restored && returned && destroyed
 }
 
 /// Verify that two independently allocated roots share only the kernel half.

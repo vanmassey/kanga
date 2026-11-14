@@ -55,6 +55,7 @@ jobs:
           grep -F "Kernel idle loop reached" build/serial.log
           grep -F "Scheduler runtime test: passed (timer pre-emption and both workers observed)" build/serial.log
           grep -F "Ring-3 timer return test: passed (user context resumed after timer interrupts)" build/serial.log
+          grep -F "Ring-3 syscall test: passed (one int 0x80 request dispatched in an isolated address space)" build/serial.log
           sleep 1
           cat build/serial.log
 
@@ -73,6 +74,7 @@ jobs:
           grep -F "CPU NX protection: enabled" build/serial.log
           grep -F "Virtual mapping, translation and unmapping test: passed" build/serial.log
           grep -F "Address-space root creation and kernel mapping isolation test: passed" build/serial.log
+          grep -F "Address-space CR3 activation and restoration test: passed" build/serial.log
           grep -F "Inactive address-space user mapping and translation test: passed" build/serial.log
           grep -F "Physical bitmap managed frames: " build/serial.log
           grep -F "Physical bitmap capacity: " build/serial.log
