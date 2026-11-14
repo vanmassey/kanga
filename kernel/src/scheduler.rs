@@ -647,6 +647,11 @@ pub fn ring3_timer_self_test(hhdm_offset: u64) -> bool {
         && !RING3_TEST_FAILED.load(Ordering::Acquire)
         && RING3_TEST_INTERRUPTS.load(Ordering::Relaxed) >= 3
         && RING3_TEST_SYSCALLS.load(Ordering::Relaxed) == 1;
+    let _ = writeln!(
+        crate::serial::Writer,
+        "Ring-3 syscall test: {} (one int 0x80 request dispatched in an isolated address space)",
+        if RING3_TEST_SYSCALLS.load(Ordering::Relaxed) == 1 { "passed" } else { "FAILED" }
+    );
     let mut unmapped = true;
     for (virtual_address, _) in mappings {
         unmapped &= address_space.unmap_page(virtual_address).is_ok();
