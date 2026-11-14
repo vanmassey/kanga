@@ -483,6 +483,20 @@ pub fn ring3_timer_self_test(hhdm_offset: u64) -> bool {
         first_frame + crate::memory::PAGE_SIZE,
         first_frame + crate::memory::PAGE_SIZE * 2,
     ];
+
+    let mut address_space = match crate::paging::create_address_space() {
+        Ok(space) => space,
+        Err(_) => {
+            let _ = crate::memory::with_global_allocator(|allocator| {
+                for frame in frames {
+                    // SAFETY: These frames were allocated above and remain unmapped.
+                    let _ = unsafe { allocator.deallocate_frame(frame) };
+                }
+            });
+            restore_interrupts(interrupt_flags);
+            return false;
+        }
+    };
     let mappings = [
         (
             RING3_TEST_CODE,
@@ -505,9 +519,9 @@ pub fn ring3_timer_self_test(hhdm_offset: u64) -> bool {
     ];
 
     for (index, (virtual_address, flags)) in mappings.iter().enumerate() {
-        if crate::paging::map_page(*virtual_address, frames[index], *flags).is_err() {
+        if address_space.map_page(*virtual_address, frames[index], *flags).is_err() {
             for (mapped_address, _) in mappings.iter().take(index) {
-                let _ = crate::paging::unmap_page(*mapped_address);
+                let _ = address_space.unmap_page(*mapped_address);
             }
             let _ = crate::memory::with_global_allocator(|allocator| {
                 for frame in frames {
@@ -609,16 +623,46 @@ pub fn ring3_timer_self_test(hhdm_offset: u64) -> bool {
             entry_ss,
             entry_rsp
         );
+        let previous_root = match address_space.activate() {
+            Ok(root) => root,
+            Err(_) => {
+                RING3_TEST_ACTIVE.store(false, Ordering::Release);
+                restore_interrupts(interrupt_flags);
+                return false;
+            }
+        };
         kanga_enter_ring3_test();
+        let restored = crate::paging::AddressSpace::restore_root(previous_root).is_ok();
+        RING3_TEST_ACTIVE.store(false, Ordering::Release);
+        if !restored {
+            restore_interrupts(interrupt_flags);
+            return false;
+        }
     }
 
-    RING3_TEST_ACTIVE.store(false, Ordering::Release);
     let passed = RING3_TEST_PASSED.load(Ordering::Acquire)
         && !RING3_TEST_FAILED.load(Ordering::Acquire)
         && RING3_TEST_INTERRUPTS.load(Ordering::Relaxed) >= 3
         && RING3_TEST_SYSCALLS.load(Ordering::Relaxed) == 1;
+    let mut unmapped = true;
+    for (virtual_address, _) in mappings {
+        unmapped &= address_space.unmap_page(virtual_address).is_ok();
+    }
+    let released = if unmapped {
+        let frames_returned = crate::memory::with_global_allocator(|allocator| {
+            let mut all_returned = true;
+            for frame in frames {
+                // SAFETY: The user mappings were removed and the test owns these frames.
+                all_returned &= unsafe { allocator.deallocate_frame(frame) };
+            }
+            all_returned
+        }).unwrap_or(false);
+        frames_returned && address_space.destroy()
+    } else {
+        false
+    };
     restore_interrupts(interrupt_flags);
-    passed
+    passed && released
 }
 
 fn handle_ring3_test_interrupt(frame: *mut RegisterFrame) {
