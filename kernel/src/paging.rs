@@ -391,6 +391,37 @@ pub fn create_address_space() -> Result<AddressSpace, MappingError> {
     Ok(AddressSpace { root_frame: frame })
 }
 
+/// Verify that CR3 can switch to an isolated root and return to the boot root.
+pub fn address_space_activation_self_test() -> bool {
+    let space = match create_address_space() {
+        Ok(space) => space,
+        Err(_) => return false,
+    };
+    let target = space.root_physical_address();
+    let previous = match space.activate() {
+        Ok(root) => root,
+        Err(_) => {
+            let _ = space.destroy();
+            return false;
+        }
+    };
+    let active: u64;
+    // SAFETY: Read the current privileged page-table root for the self-test.
+    unsafe {
+        asm!("mov {}, cr3", out(reg) active, options(nomem, nostack, preserves_flags));
+    }
+    let switched = active & ADDRESS_MASK == target;
+    let restored = AddressSpace::restore_root(previous).is_ok();
+    let after_restore: u64;
+    // SAFETY: Read CR3 after restoring the saved root.
+    unsafe {
+        asm!("mov {}, cr3", out(reg) after_restore, options(nomem, nostack, preserves_flags));
+    }
+    let returned = after_restore & ADDRESS_MASK == previous;
+    let destroyed = space.destroy();
+    switched && restored && returned && destroyed
+}
+
 /// Verify that two independently allocated roots share only the kernel half.
 pub fn address_space_self_test() -> bool {
     let first = match create_address_space() {
