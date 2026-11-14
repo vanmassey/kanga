@@ -31,6 +31,7 @@ static RING3_TEST_ACTIVE: AtomicBool = AtomicBool::new(false);
 static RING3_TEST_PASSED: AtomicBool = AtomicBool::new(false);
 static RING3_TEST_FAILED: AtomicBool = AtomicBool::new(false);
 static RING3_TEST_INTERRUPTS: AtomicU64 = AtomicU64::new(0);
+static RING3_TEST_SYSCALLS: AtomicU64 = AtomicU64::new(0);
 static RING3_TEST_KERNEL_CS: AtomicUsize = AtomicUsize::new(0);
 static RING3_TEST_KERNEL_SS: AtomicUsize = AtomicUsize::new(0);
 
@@ -154,6 +155,49 @@ global_asm!(
 );
 
 global_asm!(
+    ".global kanga_syscall_interrupt_entry",
+    "kanga_syscall_interrupt_entry:",
+    "push rax",
+    "push rbx",
+    "push rcx",
+    "push rdx",
+    "push rsi",
+    "push rdi",
+    "push rbp",
+    "push r8",
+    "push r9",
+    "push r10",
+    "push r11",
+    "push r12",
+    "push r13",
+    "push r14",
+    "push r15",
+    "mov rdi, rsp",
+    "sub rsp, 16",
+    "and rsp, -16",
+    "mov qword ptr [rsp + 8], rdi",
+    "call {syscall_dispatch}",
+    "mov rsp, qword ptr [rsp + 8]",
+    "pop r15",
+    "pop r14",
+    "pop r13",
+    "pop r12",
+    "pop r11",
+    "pop r10",
+    "pop r9",
+    "pop r8",
+    "pop rbp",
+    "pop rdi",
+    "pop rsi",
+    "pop rdx",
+    "pop rcx",
+    "pop rbx",
+    "pop rax",
+    "iretq",
+    syscall_dispatch = sym syscall_dispatch,
+);
+
+global_asm!(
     ".section .rodata",
     ".balign 16",
     ".global kanga_ring3_user_code_start",
@@ -174,6 +218,7 @@ global_asm!(
     "movabs r14, 0xddddeeeeffff0001",
     "movabs r15, 0xeeeeffff00011112",
     "mov dword ptr [rax + 8], 0x52454144",
+    "int 0x80",
     "2:",
     "cmp dword ptr [rax], 2",
     "jb 2b",
@@ -227,6 +272,7 @@ global_asm!(
 extern "C" {
     #[link_name = "kanga_timer_interrupt_entry"]
     pub(crate) fn timer_interrupt_entry();
+    pub(crate) fn syscall_interrupt_entry();
     fn kanga_enter_ring3_test();
     fn kanga_ring3_test_return();
     static kanga_ring3_kernel_rsp: u64;
@@ -352,6 +398,14 @@ pub fn runtime_self_test() -> bool {
         && CONTEXT_SWITCHES.load(Ordering::Relaxed) >= 6
         && WORKER_A_TICKS.load(Ordering::Relaxed) > 0
         && WORKER_B_TICKS.load(Ordering::Relaxed) > 0
+}
+
+extern "C" fn syscall_dispatch(context: usize) {
+    let frame = context as *const RegisterFrame;
+    let code_segment = unsafe { ptr::read_unaligned(ptr::addr_of!((*frame).code_segment)) };
+    if code_segment & 0x3 == 3 && RING3_TEST_ACTIVE.load(Ordering::Acquire) {
+        RING3_TEST_SYSCALLS.fetch_add(1, Ordering::Relaxed);
+    }
 }
 
 extern "C" fn scheduler_tick(context: usize) -> usize {
@@ -528,6 +582,7 @@ pub fn ring3_timer_self_test(hhdm_offset: u64) -> bool {
     RING3_TEST_KERNEL_CS.store(usize::from(kernel_code_selector), Ordering::Release);
     RING3_TEST_KERNEL_SS.store(usize::from(kernel_stack_selector), Ordering::Release);
     RING3_TEST_INTERRUPTS.store(0, Ordering::Relaxed);
+    RING3_TEST_SYSCALLS.store(0, Ordering::Relaxed);
     RING3_TEST_PASSED.store(false, Ordering::Relaxed);
     RING3_TEST_FAILED.store(false, Ordering::Relaxed);
     RING3_TEST_ACTIVE.store(true, Ordering::Release);
@@ -560,7 +615,8 @@ pub fn ring3_timer_self_test(hhdm_offset: u64) -> bool {
     RING3_TEST_ACTIVE.store(false, Ordering::Release);
     let passed = RING3_TEST_PASSED.load(Ordering::Acquire)
         && !RING3_TEST_FAILED.load(Ordering::Acquire)
-        && RING3_TEST_INTERRUPTS.load(Ordering::Relaxed) >= 3;
+        && RING3_TEST_INTERRUPTS.load(Ordering::Relaxed) >= 3
+        && RING3_TEST_SYSCALLS.load(Ordering::Relaxed) == 1;
     restore_interrupts(interrupt_flags);
     passed
 }
