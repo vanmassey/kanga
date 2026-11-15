@@ -1,3 +1,9 @@
+NOTE: Kanga will not be actively maintained anymore. I built this kernel with artificial intelligence and yes, it was interesting, and yes, it was fun, but I think I need to focus on actually building usable and beneficial programs instead of rattling off operating systems like Kanga and Arechi. Maybe when I learn C or Rust to a good level I'll try again, but for now this repository and it's contents will not be updated. Thank you.
+
+
+
+
+
 # Kanga
 
 Kanga is an independent x86-64 operating-system project. It is not a Linux distribution and is not a continuation of another kernel.
